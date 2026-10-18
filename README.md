@@ -12,7 +12,7 @@ lc-demo/
 ├── .env.example            # copy to .env and fill in keys
 ├── docker-compose.yml      # Postgres + pgvector (port 5433)
 ├── data/
-│   └── manual_ecf.txt      # RAG source (sample text)
+│   └── manual/             # RAG source: every UTF-8 .txt here is indexed (sample text)
 ├── mcp_servers/
 │   └── fiscal_server.py    # FastMCP server, launched over stdio
 ├── src/lc_demo/
@@ -45,10 +45,16 @@ uv run lc-demo basic        # basic | structured | agent | rag | memory | mcp | 
 uv run lc-demo chat         # every tool + conversation memory
 ```
 
-`rag` (and `chat`) need Postgres and `OPENAI_API_KEY` for embeddings. The manual is chunked,
-embedded and stored in the `manual_chunks` table on first use; after editing `data/` or changing
-`LC_EMBEDDING_MODEL`, rebuild it with `uv run lc-demo-ingest`. Everything else only needs the
-model provider's key. Change `LC_MODEL` in `.env` to switch providers.
+`rag` (and `chat`) need Postgres and `OPENAI_API_KEY` for embeddings. Every `.txt` in
+`data/manual/` is chunked, embedded and stored in the `manual_chunks` table on first use, and
+search results name the file each passage came from. Everything else only needs the model
+provider's key.
+
+To update the manual, add or replace files in `data/manual/` (UTF-8; `lc-demo-ingest` refuses
+other encodings and prints the `iconv` command to convert), then rebuild with
+`uv run lc-demo-ingest` (prefix `DATABASE_URL=...` for Neon) and commit the files. The rebuild
+fills a side table and swaps it in within one transaction, so searches keep working throughout.
+Rebuild and reboot after changing `LC_EMBEDDING_MODEL`. Change `LC_MODEL` in `.env` to switch providers.
 
 ## Web UI
 
