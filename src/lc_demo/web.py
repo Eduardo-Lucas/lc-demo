@@ -213,8 +213,10 @@ def login_page() -> None:
 def login_form() -> None:
     ui.auth_header("01 / Entrar", "Que bom ver você de novo.", "Entre para continuar suas conversas de onde parou.")
     with st.form("login"):
-        email = st.text_input("E-mail", placeholder="voce@exemplo.com", autocomplete="email")
-        password = st.text_input("Senha", type="password")
+        # "username" + "current-password" let browsers' password managers fill in a saved login;
+        # Streamlit's default for password fields ("new-password") makes them offer to generate one instead.
+        email = st.text_input("E-mail", placeholder="voce@exemplo.com", autocomplete="username")
+        password = st.text_input("Senha", type="password", autocomplete="current-password")
         remember = st.checkbox("Manter conectado", help=f"Neste navegador, por {REMEMBER_DAYS} dias.")
         if st.form_submit_button("Entrar", type="primary", icon=":material/north_east:", width="stretch"):
             if authenticate(email, password):
@@ -255,7 +257,8 @@ def signup_form(first_user: bool) -> None:
             "Crie uma conta para começar a fazer perguntas. Leva poucos segundos.",
         )
     with st.form("signup"):
-        email = st.text_input("E-mail", placeholder="voce@exemplo.com", autocomplete="email")
+        # "username" so the browser saves the new password under this email.
+        email = st.text_input("E-mail", placeholder="voce@exemplo.com", autocomplete="username")
         password = st.text_input(
             "Senha", type="password", autocomplete="new-password", help=f"Pelo menos {MIN_PASSWORD_LENGTH} caracteres."
         )
