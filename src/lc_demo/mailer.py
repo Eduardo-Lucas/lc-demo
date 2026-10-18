@@ -5,6 +5,7 @@ import ssl
 from email.message import EmailMessage
 
 from lc_demo.config import (
+    APP_NAME,
     APP_URL,
     RESET_LINK_MINUTES,
     SMTP_FROM,
@@ -41,12 +42,12 @@ def send(message: EmailMessage) -> None:
 def send_reset_email(to: str, token: str) -> None:
     # The interface is in Brazilian Portuguese, so is the email.
     message = EmailMessage()
-    message["Subject"] = "Redefinição de senha — lc-demo"
+    message["Subject"] = f"Redefinição de senha — {APP_NAME}"
     message["From"] = SMTP_FROM
     message["To"] = to
     message.set_content(
         "Olá!\n\n"
-        "Recebemos um pedido para redefinir a senha da sua conta no lc-demo.\n"
+        f"Recebemos um pedido para redefinir a senha da sua conta no {APP_NAME}.\n"
         "Para criar uma nova senha, abra o link abaixo:\n\n"
         f"{reset_link(token)}\n\n"
         f"O link vale por {RESET_LINK_MINUTES} minutos e só pode ser usado uma vez.\n"

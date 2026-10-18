@@ -52,7 +52,8 @@ def test_reset_email(monkeypatch):
     assert smtp.calls == ["starttls", ("login", "sender@example.com")]
     assert message["To"] == "ana@example.com"
     assert message["From"] == "lc-demo <sender@example.com>"
-    assert "Redefinição de senha" in message["Subject"]
+    assert message["Subject"] == "Redefinição de senha — Prumo Fiscal"
+    assert "sua conta no Prumo Fiscal" in message.get_content()
     assert "https://lc-demo.streamlit.app/?reset=tok123" in message.get_content()
 
 

@@ -8,6 +8,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Product name shown to users (login page, browser tab, emails); the code/package stays "lc-demo".
+APP_NAME = os.getenv("LC_APP_NAME", "Prumo Fiscal")
+
 MODEL = os.getenv("LC_MODEL", "anthropic:claude-sonnet-4-5")
 EMBEDDING_MODEL = os.getenv("LC_EMBEDDING_MODEL", "text-embedding-3-small")
 # Only needed for org-level Anthropic keys that aren't scoped to a workspace.

@@ -27,7 +27,7 @@ from lc_demo.auth import (
     reset_password,
     reset_token_is_valid,
 )
-from lc_demo.config import DAILY_MESSAGE_LIMIT, DATABASE_URL, redact
+from lc_demo.config import APP_NAME, DAILY_MESSAGE_LIMIT, DATABASE_URL, redact
 from lc_demo.main import user
 
 # The interface is in Brazilian Portuguese (the app's audience); code and logs stay in English.
@@ -348,7 +348,7 @@ def chat_page(username: str) -> None:
 
 
 # The login page is a full-width split screen; the chat keeps Streamlit's centered column.
-st.set_page_config(page_title="lc-demo", page_icon="🧾", layout="centered" if "user" in st.session_state else "wide")
+st.set_page_config(page_title=APP_NAME, page_icon="🧾", layout="centered" if "user" in st.session_state else "wide")
 if "user" not in st.session_state:
     login_page()
 chat_page(st.session_state.user)

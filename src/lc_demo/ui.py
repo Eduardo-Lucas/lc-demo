@@ -5,6 +5,8 @@ Layout modelled on Colorlib's "Relay Auth" template; markup and copy are this ap
 
 import streamlit as st
 
+from lc_demo.config import APP_NAME
+
 FONTS = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@1&display=swap"
 
 CSS = f"""
@@ -155,9 +157,9 @@ CSS = f"""
 </style>
 """
 
-INTRO = """
+INTRO = f"""
 <div class="intro">
-  <div class="brand"><span class="mark">§</span>lc-demo<span class="tag">ASSISTENTE FISCAL</span></div>
+  <div class="brand"><span class="mark">§</span>{APP_NAME}<span class="tag">ASSISTENTE COM IA</span></div>
   <p class="eyebrow">Conformidade fiscal brasileira, em linguagem simples</p>
   <h1>Respostas fiscais,<br>sem a<br><em>papelada.</em></h1>
   <p class="lede">Um assistente de chat para a conformidade tributária brasileira. Pergunte como
