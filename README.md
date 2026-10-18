@@ -40,6 +40,7 @@ uv sync
 cp .env.example .env        # add your keys
 docker-compose up -d        # Postgres + pgvector, for rag/chat and the web UI
 uv run pytest               # no API keys needed; DB tests skip if Postgres is down
+uv run ruff check .         # lint (also runs in CI)
 uv run lc-demo basic        # basic | structured | agent | rag | memory | mcp | chat | all
 uv run lc-demo chat         # every tool + conversation memory
 ```

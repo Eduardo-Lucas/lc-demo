@@ -13,6 +13,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # setup-uv publishes no major-version tags; pinned to the v10.3.0 commit.
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          enable-cache: true
+
+      # --only-dev installs just the dev tools; ruff's version comes from uv.lock.
+      # The github format turns findings into inline annotations on the PR diff.
+      - name: Ruff
+        run: uv run --locked --only-dev ruff check --output-format=github .
+
   pytest:
     runs-on: ubuntu-latest
     strategy:

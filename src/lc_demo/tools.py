@@ -6,7 +6,7 @@ _WEIGHTS = (5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2)
 
 
 def _check_digit(digits: list[int], weights: tuple[int, ...]) -> int:
-    remainder = sum(d * w for d, w in zip(digits, weights)) % 11
+    remainder = sum(d * w for d, w in zip(digits, weights, strict=True)) % 11
     return 0 if remainder < 2 else 11 - remainder
 
 
