@@ -79,6 +79,10 @@ spend limit in the Anthropic and OpenAI consoles as a hard ceiling.
 through any SMTP provider (`mailer.py`). It appears once `SMTP_HOST`, `SMTP_USERNAME`,
 `SMTP_PASSWORD`, `SMTP_FROM` and `APP_URL` are set; see `cloud-secrets.example.toml`.
 
+"Manter conectado" keeps a browser signed in for `LC_REMEMBER_DAYS` (default 30) with a cookie
+holding a random token (only its hash is stored, in `remember_tokens`). "Sair" revokes it, and any
+password change signs out every remembered browser.
+
 Sign-up is open to anyone who can reach the app, and every chat uses your API keys.
 Sign-up never changes an existing account; to reset a password, rerun `lc-demo-adduser`.
 The CLI demos keep conversation memory in `InMemorySaver`.

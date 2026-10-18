@@ -40,6 +40,8 @@ SMTP_FROM = os.getenv("SMTP_FROM", SMTP_USERNAME)
 # Public address of the web UI; reset links point here.
 APP_URL = os.getenv("APP_URL", "http://localhost:8501").rstrip("/")
 RESET_LINK_MINUTES = int(os.getenv("LC_RESET_LINK_MINUTES", "30"))
+# How long "Manter conectado" keeps a browser signed in.
+REMEMBER_DAYS = int(os.getenv("LC_REMEMBER_DAYS", "30"))
 
 
 def redact(url: str) -> str:

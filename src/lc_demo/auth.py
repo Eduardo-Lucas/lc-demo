@@ -13,7 +13,7 @@ from functools import cache
 
 import psycopg
 
-from lc_demo.config import DATABASE_URL, RESET_LINK_MINUTES, redact
+from lc_demo.config import DATABASE_URL, REMEMBER_DAYS, RESET_LINK_MINUTES, redact
 
 # OWASP-recommended scrypt cost; ~50 ms per check, which also slows brute force.
 _N, _R, _P = 2**14, 8, 1
@@ -34,6 +34,15 @@ CREATE TABLE IF NOT EXISTS password_resets (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     expires_at TIMESTAMPTZ NOT NULL,
     used_at    TIMESTAMPTZ
+)""",
+    # "Manter conectado": one row per remembered browser; the cookie holds the token, we keep its hash.
+    """
+CREATE TABLE IF NOT EXISTS remember_tokens (
+    token_hash   TEXT PRIMARY KEY,
+    username     TEXT NOT NULL REFERENCES users (username) ON DELETE CASCADE ON UPDATE CASCADE,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at   TIMESTAMPTZ NOT NULL,
+    last_used_at TIMESTAMPTZ
 )""",
 )
 
@@ -117,12 +126,14 @@ def create_user(email: str, password: str) -> bool:
 def save_user(email: str, password: str) -> None:
     """Admin path: create the user, or reset their password if they already exist."""
     check_new_credentials(email, password)
-    with _connect() as conn:
+    with _connect() as conn, conn.transaction():
         conn.execute(
             """INSERT INTO users (username, password_hash) VALUES (%s, %s)
                ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash""",
             (normalize_email(email), hash_password(password)),
         )
+        # A new password signs out every remembered browser.
+        conn.execute("DELETE FROM remember_tokens WHERE username = %s", (normalize_email(email),))
 
 
 def authenticate(email: str, password: str) -> bool:
@@ -192,7 +203,37 @@ def reset_password(token: str, new_password: str) -> str | None:
         conn.execute("UPDATE users SET password_hash = %s WHERE username = %s", (hash_password(new_password), email))
         # Any other outstanding links for this account stop working too.
         conn.execute("UPDATE password_resets SET used_at = now() WHERE username = %s AND used_at IS NULL", (email,))
+        # A new password signs out every remembered browser (e.g. a lost laptop).
+        conn.execute("DELETE FROM remember_tokens WHERE username = %s", (email,))
         return email
+
+
+def create_remember_token(email: str) -> str:
+    """Token for the "Manter conectado" cookie; valid for REMEMBER_DAYS."""
+    token = secrets.token_urlsafe(32)
+    with _connect() as conn:
+        conn.execute(
+            """INSERT INTO remember_tokens (token_hash, username, expires_at)
+               VALUES (%s, %s, now() + make_interval(days => %s))""",
+            (_token_hash(token), normalize_email(email), REMEMBER_DAYS),
+        )
+    return token
+
+
+def user_for_remember_token(token: str) -> str | None:
+    """Email of the account this cookie token signs in, or None if it's unknown, revoked or expired."""
+    with _connect() as conn:
+        row = conn.execute(
+            """UPDATE remember_tokens SET last_used_at = now()
+               WHERE token_hash = %s AND expires_at > now() RETURNING username""",
+            (_token_hash(token),),
+        ).fetchone()
+    return row[0] if row else None
+
+
+def revoke_remember_token(token: str) -> None:
+    with _connect() as conn:
+        conn.execute("DELETE FROM remember_tokens WHERE token_hash = %s", (_token_hash(token),))
 
 
 def main() -> None:

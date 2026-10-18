@@ -5,6 +5,7 @@ chats survive server restarts. Each user only sees and loads their own conversat
 """
 
 import asyncio
+import json
 import logging
 import threading
 from collections.abc import AsyncIterator, Coroutine, Iterator
@@ -19,6 +20,7 @@ from lc_demo.agent import build_full_agent
 from lc_demo.auth import (
     MIN_PASSWORD_LENGTH,
     authenticate,
+    create_remember_token,
     create_reset_token,
     create_user,
     has_users,
@@ -26,8 +28,10 @@ from lc_demo.auth import (
     normalize_email,
     reset_password,
     reset_token_is_valid,
+    revoke_remember_token,
+    user_for_remember_token,
 )
-from lc_demo.config import APP_NAME, DAILY_MESSAGE_LIMIT, DATABASE_URL, redact
+from lc_demo.config import APP_NAME, DAILY_MESSAGE_LIMIT, DATABASE_URL, REMEMBER_DAYS, redact
 from lc_demo.main import user
 
 # The interface is in Brazilian Portuguese (the app's audience); code and logs stay in English.
@@ -107,6 +111,67 @@ async def stream_reply(agent, text: str, config: dict) -> AsyncIterator[str]:
 # --- pages ---
 
 
+# --- "Manter conectado": a cookie holding a random token (never the password) ---
+
+REMEMBER_COOKIE = "prumo_lembrar"
+
+
+def set_cookie(token: str | None) -> None:
+    """Queue a cookie write (token) or deletion (None); applied at the top of the next run."""
+    st.session_state.pending_cookie = token or ""
+
+
+def apply_pending_cookie() -> None:
+    """Write/delete the cookie in the browser. Runs in a run that isn't immediately rerun, so the script executes."""
+    if "pending_cookie" not in st.session_state:
+        return
+    token = st.session_state.pop("pending_cookie")
+    max_age = REMEMBER_DAYS * 86400 if token else 0
+    st.html(
+        f"""<script>
+        document.cookie = {json.dumps(REMEMBER_COOKIE + "=" + token)} + "; Max-Age={max_age}; Path=/; SameSite=Lax"
+            + (location.protocol === "https:" ? "; Secure" : "");
+        </script>""",
+        unsafe_allow_javascript=True,  # fixed script; the token is URL-safe base64 from secrets.token_urlsafe
+    )
+
+
+def cookie_token() -> str | None:
+    """The remember-me token from this session's cookies, if it's a plausible value."""
+    token = st.context.cookies.get(REMEMBER_COOKIE)
+    # Cookies are client input; also, st.context is a MagicMock under streamlit.testing.
+    return token if isinstance(token, str) and token else None
+
+
+def restore_session() -> None:
+    """Sign in from the "Manter conectado" cookie, once per browser session."""
+    if "user" in st.session_state or st.session_state.get("cookie_checked"):
+        return
+    st.session_state.cookie_checked = True
+    token = cookie_token()
+    if not token:
+        return
+    try:
+        email = user_for_remember_token(token)
+    except psycopg.OperationalError:
+        return  # the login page reports the database problem
+    if email:
+        st.session_state.user = email
+        st.session_state.remember_token = token
+    else:
+        set_cookie(None)  # expired or revoked: drop the stale cookie
+
+
+def log_out() -> None:
+    # Cookies seen by this session are a snapshot from when it started, so prefer the token we know about.
+    token = st.session_state.get("remember_token") or cookie_token()
+    if token:
+        revoke_remember_token(token)
+    st.session_state.clear()
+    st.session_state.cookie_checked = True
+    set_cookie(None)
+
+
 def show_view(view: str) -> None:
     """Switch the login page between "login", "signup" and "forgot"."""
     st.session_state.view = view
@@ -145,9 +210,14 @@ def login_form() -> None:
     with st.form("login"):
         email = st.text_input("E-mail", placeholder="voce@exemplo.com", autocomplete="email")
         password = st.text_input("Senha", type="password")
+        remember = st.checkbox("Manter conectado", help=f"Neste navegador, por {REMEMBER_DAYS} dias.")
         if st.form_submit_button("Entrar", type="primary", icon=":material/north_east:", width="stretch"):
             if authenticate(email, password):
                 st.session_state.user = normalize_email(email)
+                if remember:
+                    token = create_remember_token(email)
+                    st.session_state.remember_token = token
+                    set_cookie(token)
                 st.rerun()
             st.error("E-mail ou senha inválidos.")
     if mailer.is_configured():
@@ -269,7 +339,7 @@ def sidebar(pool, agent, username: str, messages_today: int) -> str | None:
         st.write(f"Conectado como **{username}**")
         st.caption(f"Mensagens hoje: {min(messages_today, DAILY_MESSAGE_LIMIT)} de {DAILY_MESSAGE_LIMIT}")
         if st.button("Sair"):
-            st.session_state.clear()
+            log_out()
             st.rerun()
         st.divider()
         if st.button("➕ Nova conversa", width="stretch"):
@@ -348,7 +418,9 @@ def chat_page(username: str) -> None:
 
 
 # The login page is a full-width split screen; the chat keeps Streamlit's centered column.
+restore_session()
 st.set_page_config(page_title=APP_NAME, page_icon="🧾", layout="centered" if "user" in st.session_state else "wide")
+apply_pending_cookie()
 if "user" not in st.session_state:
     login_page()
 chat_page(st.session_state.user)

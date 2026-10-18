@@ -4,6 +4,7 @@ import pytest
 from lc_demo.auth import (
     _connect,
     authenticate,
+    create_remember_token,
     create_reset_token,
     create_user,
     has_users,
@@ -11,7 +12,9 @@ from lc_demo.auth import (
     is_valid_email,
     reset_password,
     reset_token_is_valid,
+    revoke_remember_token,
     save_user,
+    user_for_remember_token,
     verify_password,
 )
 
@@ -147,3 +150,33 @@ def test_reset_links_expire_and_using_one_revokes_the_rest(users_db):
         conn.execute("UPDATE password_resets SET expires_at = now() - interval '1 second' WHERE used_at IS NULL")
     assert not reset_token_is_valid(expired)
     assert reset_password(expired, "whatever-123") is None
+
+
+def test_remember_token_lifecycle(users_db):
+    save_user("test-keep@example.com", "password-123")
+    token = create_remember_token("Test-Keep@Example.com")
+    assert user_for_remember_token(token) == "test-keep@example.com"
+    assert user_for_remember_token("not-a-real-token") is None
+    with _connect() as conn:
+        stored = [r[0] for r in conn.execute("SELECT token_hash FROM remember_tokens WHERE username LIKE 'test-%'")]
+    assert stored and token not in stored  # only the hash is kept
+
+    revoke_remember_token(token)  # "Sair"
+    assert user_for_remember_token(token) is None
+
+    expired = create_remember_token("test-keep@example.com")
+    with _connect() as conn:
+        conn.execute("UPDATE remember_tokens SET expires_at = now() - interval '1 second' WHERE username LIKE 'test-%'")
+    assert user_for_remember_token(expired) is None
+
+
+def test_changing_the_password_signs_out_remembered_browsers(users_db):
+    save_user("test-keep2@example.com", "password-123")
+    laptop, phone = create_remember_token("test-keep2@example.com"), create_remember_token("test-keep2@example.com")
+    reset = create_reset_token("test-keep2@example.com")
+    assert reset_password(reset, "new-password-1") == "test-keep2@example.com"
+    assert user_for_remember_token(laptop) is None and user_for_remember_token(phone) is None
+
+    tablet = create_remember_token("test-keep2@example.com")
+    save_user("test-keep2@example.com", "admin-reset-1")  # lc-demo-adduser path
+    assert user_for_remember_token(tablet) is None
