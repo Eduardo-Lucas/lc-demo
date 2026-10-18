@@ -15,7 +15,7 @@ from psycopg_pool import PoolTimeout
 
 from lc_demo import db
 from lc_demo.agent import build_full_agent
-from lc_demo.auth import authenticate, has_users
+from lc_demo.auth import authenticate, has_users, normalize_email
 from lc_demo.config import DATABASE_URL, redact
 from lc_demo.main import user
 
@@ -79,16 +79,16 @@ def login_page() -> None:
         st.error(DB_DOWN)
         st.stop()
     if not any_users:
-        st.info("No users yet. Create one with `uv run lc-demo-adduser <username>`, then reload.")
+        st.info("No users yet. Create one with `uv run lc-demo-adduser <email>`, then reload.")
         st.stop()
     with st.form("login"):
-        username = st.text_input("Username")
+        email = st.text_input("Email", autocomplete="email")
         password = st.text_input("Password", type="password")
         if st.form_submit_button("Log in", type="primary"):
-            if authenticate(username, password):
-                st.session_state.user = username
+            if authenticate(email, password):
+                st.session_state.user = normalize_email(email)
                 st.rerun()
-            st.error("Invalid username or password.")
+            st.error("Invalid email or password.")
     st.stop()
 
 

@@ -1,12 +1,13 @@
-"""Username/password auth backed by a Postgres `users` table of scrypt hashes.
+"""Email/password auth backed by a Postgres `users` table of scrypt hashes.
 
-Add a user: `uv run lc-demo-adduser <username>` (prompts for the password).
+Add a user: `uv run lc-demo-adduser <email>` (prompts for the password).
 """
 
 import argparse
 import getpass
 import hashlib
 import hmac
+import re
 import secrets
 from functools import cache
 
@@ -17,12 +18,26 @@ from lc_demo.config import DATABASE_URL, redact
 # OWASP-recommended scrypt cost; ~50 ms per check, which also slows brute force.
 _N, _R, _P = 2**14, 8, 1
 
+# The account id is the user's email, stored lowercased in `username` (also the key in `conversations`).
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
     username      TEXT PRIMARY KEY,
     password_hash TEXT NOT NULL,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 )"""
+
+
+# Shape check only (something@domain.tld); proving ownership would need a confirmation email.
+_EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
+
+
+def normalize_email(email: str) -> str:
+    """Canonical account id, so `Ana@Example.com ` and `ana@example.com` are one account."""
+    return email.strip().lower()
+
+
+def is_valid_email(email: str) -> bool:
+    return _EMAIL.fullmatch(normalize_email(email)) is not None
 
 
 def hash_password(password: str) -> str:
@@ -62,19 +77,23 @@ def has_users() -> bool:
         return conn.execute("SELECT EXISTS (SELECT 1 FROM users)").fetchone()[0]
 
 
-def save_user(username: str, password: str) -> None:
+def save_user(email: str, password: str) -> None:
     """Create the user, or reset their password if they already exist."""
+    if not is_valid_email(email):
+        raise ValueError(f"not a valid email: {email!r}")
     with _connect() as conn:
         conn.execute(
             """INSERT INTO users (username, password_hash) VALUES (%s, %s)
                ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash""",
-            (username, hash_password(password)),
+            (normalize_email(email), hash_password(password)),
         )
 
 
-def authenticate(username: str, password: str) -> bool:
+def authenticate(email: str, password: str) -> bool:
     with _connect() as conn:
-        row = conn.execute("SELECT password_hash FROM users WHERE username = %s", (username,)).fetchone()
+        row = conn.execute(
+            "SELECT password_hash FROM users WHERE username = %s", (normalize_email(email),)
+        ).fetchone()
     if row is None:
         verify_password(password, _DUMMY_HASH)
         return False
@@ -83,10 +102,10 @@ def authenticate(username: str, password: str) -> bool:
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="lc-demo-adduser", description="Add a web UI user or reset their password.")
-    parser.add_argument("username")
-    username = parser.parse_args().username
-    if not username.replace("_", "").replace("-", "").replace(".", "").isalnum():
-        parser.error("username may only contain letters, digits, '.', '-' and '_'")
+    parser.add_argument("email")
+    email = normalize_email(parser.parse_args().email)
+    if not is_valid_email(email):
+        parser.error(f"{email!r} is not a valid email address")
     try:
         password = getpass.getpass("Password: ")
         repeated = getpass.getpass("Repeat: ")
@@ -95,7 +114,7 @@ def main() -> None:
     if password != repeated:
         parser.error("passwords do not match")
     try:
-        save_user(username, password)
+        save_user(email, password)
     except psycopg.OperationalError:
         parser.exit(1, f"Can't reach Postgres at {redact(DATABASE_URL)}. Is it running and is DATABASE_URL right?\n")
-    print(f"Saved {username!r}.")
+    print(f"Saved {email!r}.")

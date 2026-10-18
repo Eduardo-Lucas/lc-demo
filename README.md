@@ -54,11 +54,11 @@ model provider's key. Change `LC_MODEL` in `.env` to switch providers.
 
 ```bash
 docker-compose up -d                       # Postgres on localhost:5433
-uv run lc-demo-adduser edu                 # prompts for a password; rerun to reset it
+uv run lc-demo-adduser you@example.com     # prompts for a password; rerun to reset it
 uv run streamlit run src/lc_demo/web.py    # http://localhost:8501
 ```
 
-Users (scrypt-hashed passwords in a `users` table), conversations and agent memory
+Users (log in with email; scrypt-hashed passwords in a `users` table), conversations and agent memory
 (`AsyncPostgresSaver` plus a `conversations` table) are all stored in Postgres, so they
 survive restarts. Each user only sees their own chats, which
 are titled after their first message and can be deleted from the sidebar. Replies stream token
@@ -74,7 +74,7 @@ The CLI demos keep conversation memory in `InMemorySaver`.
    ```bash
    export DATABASE_URL='<neon url>'
    uv run lc-demo-ingest
-   uv run lc-demo-adduser <username>
+   uv run lc-demo-adduser <email>
    ```
 4. On share.streamlit.io: **Create app** → this repo, branch `main`, main file
    `src/lc_demo/web.py`. Under **Advanced settings**, pick Python 3.13 and paste
