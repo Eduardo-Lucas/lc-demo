@@ -64,6 +64,11 @@ survive restarts. Each user only sees their own chats, which
 are titled after their first message and can be deleted from the sidebar. Replies stream token
 by token, and tool calls show inline. Set `DATABASE_URL` to use another Postgres.
 
+Each user gets `LC_DAILY_MESSAGE_LIMIT` messages a day (default 20) and the whole app stops at
+`LC_MONTHLY_BUDGET_USD` per month (default 20), metered from the token counts each reply reports
+(`usage.py`, `usage_log` table). Set `LC_PRICE_*_PER_MTOK` if you change `LC_MODEL`. Also set a
+spend limit in the Anthropic and OpenAI consoles as a hard ceiling.
+
 Sign-up is open to anyone who can reach the app, and every chat uses your API keys.
 Sign-up never changes an existing account; to reset a password, rerun `lc-demo-adduser`.
 The CLI demos keep conversation memory in `InMemorySaver`.

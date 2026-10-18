@@ -17,6 +17,18 @@ CREATE TABLE IF NOT EXISTS conversations (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 )""",
     "CREATE INDEX IF NOT EXISTS conversations_user_idx ON conversations (username, created_at DESC)",
+    # One row per answered message; feeds the limits in usage.py.
+    """
+CREATE TABLE IF NOT EXISTS usage_log (
+    id            BIGSERIAL PRIMARY KEY,
+    username      TEXT NOT NULL,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    input_tokens  INTEGER NOT NULL,
+    output_tokens INTEGER NOT NULL,
+    cost_usd      NUMERIC(12, 6) NOT NULL
+)""",
+    "CREATE INDEX IF NOT EXISTS usage_log_user_idx ON usage_log (username, created_at)",
+    "CREATE INDEX IF NOT EXISTS usage_log_created_idx ON usage_log (created_at)",
 )
 
 

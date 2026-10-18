@@ -5,6 +5,7 @@ chats survive server restarts. Each user only sees and loads their own conversat
 """
 
 import asyncio
+import logging
 import threading
 from collections.abc import AsyncIterator, Coroutine, Iterator
 
@@ -13,10 +14,10 @@ import streamlit as st
 from langchain_core.messages import AIMessage, HumanMessage
 from psycopg_pool import PoolTimeout
 
-from lc_demo import db, ui
+from lc_demo import db, ui, usage
 from lc_demo.agent import build_full_agent
 from lc_demo.auth import MIN_PASSWORD_LENGTH, authenticate, create_user, has_users, normalize_email
-from lc_demo.config import DATABASE_URL, redact
+from lc_demo.config import DAILY_MESSAGE_LIMIT, DATABASE_URL, redact
 from lc_demo.main import user
 
 # The interface is in Brazilian Portuguese (the app's audience); code and logs stay in English.
@@ -24,6 +25,12 @@ DB_DOWN = (
     f"Não foi possível conectar ao Postgres em `{redact(DATABASE_URL)}`. "
     "Localmente, inicie-o com `docker-compose up -d`; caso contrário, verifique `DATABASE_URL`."
 )
+
+DAILY_LIMIT_REACHED = f"Você atingiu seu limite diário de mensagens ({DAILY_MESSAGE_LIMIT}). Volte amanhã!"
+UNAVAILABLE = "O assistente está temporariamente indisponível. Por favor, volte mais tarde."
+REPLY_FAILED = "Algo deu errado ao gerar a resposta. Tente novamente em instantes."
+
+logger = logging.getLogger(__name__)
 
 # Friendly names for the tool-call lines shown in the chat.
 TOOL_LABELS = {
@@ -166,7 +173,7 @@ def signup_form(first_user: bool) -> None:
         )
 
 
-def sidebar(pool, agent, username: str) -> str | None:
+def sidebar(pool, agent, username: str, messages_today: int) -> str | None:
     """Render the conversation list; return the selected thread id (None = new chat)."""
     conversations = run(db.list_conversations(pool, username))
     # Only ever load a thread this user owns, whatever is left in session state.
@@ -175,6 +182,7 @@ def sidebar(pool, agent, username: str) -> str | None:
 
     with st.sidebar:
         st.write(f"Conectado como **{username}**")
+        st.caption(f"Mensagens hoje: {min(messages_today, DAILY_MESSAGE_LIMIT)} de {DAILY_MESSAGE_LIMIT}")
         if st.button("Sair"):
             st.session_state.clear()
             st.rerun()
@@ -218,20 +226,40 @@ def chat_page(username: str) -> None:
     except PoolTimeout:
         st.error(DB_DOWN)
         st.stop()
-    thread = sidebar(pool, agent, username)
+    status = run(usage.status(pool, username))
+    thread = sidebar(pool, agent, username, status.messages_today)
 
     st.title("Assistente fiscal")
     if thread:
         render_history(agent, {"configurable": {"thread_id": thread}})
     if text := st.chat_input("Pergunte sobre um CNPJ, as regras da ECF ou prazos de entrega…"):
-        is_new = thread is None
-        if is_new:
+        if limit := status.blocked_by():
+            st.warning(DAILY_LIMIT_REACHED if limit is usage.Limit.DAILY else UNAVAILABLE)
+            st.stop()
+        if thread is None:
             thread = st.session_state.thread = run(db.create_conversation(pool, username, text))
+        config = {"configurable": {"thread_id": thread}}
+        before = len(run(agent.aget_state(config)).values.get("messages", []))
         st.chat_message("user").write(text)
         with st.chat_message("assistant"):
-            st.write_stream(iter_sync(stream_reply(agent, text, {"configurable": {"thread_id": thread}})))
-        if is_new:
-            st.rerun()  # show the new conversation in the sidebar
+            try:
+                st.write_stream(iter_sync(stream_reply(agent, text, config)))
+                failed = False
+            except Exception as e:
+                failed = True
+                if usage.is_out_of_credit(e):
+                    logger.error("Provider out of credit: %s", e)
+                    st.warning(UNAVAILABLE)
+                else:
+                    logger.exception("Reply failed")
+                    st.error(REPLY_FAILED)
+        # Bill whatever the model produced this turn, including a turn that failed halfway.
+        new_messages = run(agent.aget_state(config)).values.get("messages", [])[before:]
+        input_tokens, output_tokens = usage.tokens_used(new_messages)
+        if input_tokens or output_tokens:
+            run(usage.record(pool, username, input_tokens, output_tokens))
+        if not failed:
+            st.rerun()  # refresh the sidebar (new conversation, message count) from saved state
 
 
 # The login page is a full-width split screen; the chat keeps Streamlit's centered column.
