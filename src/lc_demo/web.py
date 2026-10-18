@@ -16,10 +16,13 @@ from psycopg_pool import PoolTimeout
 from lc_demo import db
 from lc_demo.agent import build_full_agent
 from lc_demo.auth import authenticate, has_users
-from lc_demo.config import DATABASE_URL
+from lc_demo.config import DATABASE_URL, redact
 from lc_demo.main import user
 
-DB_DOWN = f"Can't reach Postgres at `{DATABASE_URL}`. Start it with `docker-compose up -d`."
+DB_DOWN = (
+    f"Can't reach Postgres at `{redact(DATABASE_URL)}`. "
+    "Locally, start it with `docker-compose up -d`; otherwise check `DATABASE_URL`."
+)
 
 
 # --- async bridge: Streamlit reruns are sync, the agent (MCP tools) and DB pool are async ---

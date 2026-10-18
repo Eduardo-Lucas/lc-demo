@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 from dotenv import load_dotenv
 
@@ -17,3 +18,11 @@ DATA_DIR = ROOT_DIR / "data"
 MCP_SERVERS_DIR = ROOT_DIR / "mcp_servers"
 # Matches docker-compose.yml; used for RAG (pgvector) and the web UI's users, memory and history.
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://lc_demo:lc_demo@localhost:5433/lc_demo")
+
+
+def redact(url: str) -> str:
+    """URL with the password masked, safe to show in errors or logs."""
+    parts = urlsplit(url)
+    if parts.password is None:
+        return url
+    return urlunsplit(parts._replace(netloc=parts.netloc.replace(f":{parts.password}@", ":***@", 1)))

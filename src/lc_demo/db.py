@@ -25,6 +25,8 @@ async def open_pool(url: str = DATABASE_URL) -> AsyncConnectionPool:
     pool = AsyncConnectionPool(
         url,
         open=False,
+        # Neon scales to zero and drops idle connections; check before handing one out.
+        check=AsyncConnectionPool.check_connection,
         kwargs={"autocommit": True, "row_factory": dict_row, "prepare_threshold": 0},
     )
     await pool.open(wait=True, timeout=10)

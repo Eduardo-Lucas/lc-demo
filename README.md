@@ -65,6 +65,24 @@ are titled after their first message and can be deleted from the sidebar. Replie
 by token, and tool calls show inline. Set `DATABASE_URL` to use another Postgres.
 The CLI demos keep conversation memory in `InMemorySaver`.
 
+## Deploy (Streamlit Community Cloud + Neon)
+
+1. Create a Neon project in a US region and copy its **direct** connection string
+   (host without `-pooler`). pgvector is available there; the app enables it.
+2. `cp cloud-secrets.example.toml cloud-secrets.toml` and fill it in (it's gitignored).
+3. Set up the Neon database from your machine (creates tables, indexes the manual, adds a user):
+   ```bash
+   export DATABASE_URL='<neon url>'
+   uv run lc-demo-ingest
+   uv run lc-demo-adduser <username>
+   ```
+4. On share.streamlit.io: **Create app** → this repo, branch `main`, main file
+   `src/lc_demo/web.py`. Under **Advanced settings**, pick Python 3.13 and paste
+   `cloud-secrets.toml` into **Secrets**.
+
+Community Cloud installs from `uv.lock`. Top-level secrets become environment variables,
+so the code reads them exactly like `.env`.
+
 ## Design notes
 
 - Each concept lives in its own module; `agent.py` is the only place that combines them.

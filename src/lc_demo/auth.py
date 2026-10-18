@@ -12,7 +12,7 @@ from functools import cache
 
 import psycopg
 
-from lc_demo.config import DATABASE_URL
+from lc_demo.config import DATABASE_URL, redact
 
 # OWASP-recommended scrypt cost; ~50 ms per check, which also slows brute force.
 _N, _R, _P = 2**14, 8, 1
@@ -87,11 +87,15 @@ def main() -> None:
     username = parser.parse_args().username
     if not username.replace("_", "").replace("-", "").replace(".", "").isalnum():
         parser.error("username may only contain letters, digits, '.', '-' and '_'")
-    password = getpass.getpass("Password: ")
-    if password != getpass.getpass("Repeat: "):
+    try:
+        password = getpass.getpass("Password: ")
+        repeated = getpass.getpass("Repeat: ")
+    except EOFError:
+        parser.exit(1, "\nNo terminal to read the password from; run this in an interactive shell.\n")
+    if password != repeated:
         parser.error("passwords do not match")
     try:
         save_user(username, password)
     except psycopg.OperationalError:
-        parser.exit(1, f"Can't reach Postgres at {DATABASE_URL}. Start it with `docker-compose up -d`.\n")
+        parser.exit(1, f"Can't reach Postgres at {redact(DATABASE_URL)}. Is it running and is DATABASE_URL right?\n")
     print(f"Saved {username!r}.")

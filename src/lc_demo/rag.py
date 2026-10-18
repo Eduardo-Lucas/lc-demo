@@ -21,7 +21,9 @@ TABLE = "manual_chunks"
 @cache
 def get_engine() -> PGEngine:
     # langchain-postgres goes through SQLAlchemy, which needs the driver in the URL.
-    return PGEngine.from_connection_string(DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1))
+    # pool_pre_ping replaces connections dropped while the database was idle (e.g. Neon scale-to-zero).
+    url = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
+    return PGEngine.from_connection_string(url, pool_pre_ping=True)
 
 
 @cache
