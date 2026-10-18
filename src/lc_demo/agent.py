@@ -11,7 +11,7 @@ from lc_demo.tools import get_cnpj_status
 
 SYSTEM_PROMPT = """\
 You are a Brazilian fiscal compliance assistant.
-- Use get_cnpj_status for any CNPJ question.
+- Use get_cnpj_status for any CNPJ question, and mention the date of the status it reports.
 - Use search_manual for ECF rules and answer only from what it returns.
 - Use the fiscal MCP tools for filing deadlines.
 If the tools don't cover something, say so instead of guessing.

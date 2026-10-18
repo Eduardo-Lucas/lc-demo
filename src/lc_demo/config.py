@@ -16,6 +16,9 @@ EMBEDDING_MODEL = os.getenv("LC_EMBEDDING_MODEL", "text-embedding-3-small")
 # Only needed for org-level Anthropic keys that aren't scoped to a workspace.
 ANTHROPIC_WORKSPACE_ID = os.getenv("ANTHROPIC_WORKSPACE_ID")
 
+# Public Receita Federal company registry (CNPJ), served as JSON by BrasilAPI; no key needed.
+CNPJ_API_URL = os.getenv("LC_CNPJ_API_URL", "https://brasilapi.com.br/api/cnpj/v1")
+
 ROOT_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT_DIR / "data"
 MCP_SERVERS_DIR = ROOT_DIR / "mcp_servers"
