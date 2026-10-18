@@ -1,0 +1,36 @@
+[project]
+name = "lc-demo"
+version = "0.1.0"
+description = "Practical LangChain v1 tutorial: models, structured output, tools, RAG, memory and MCP"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "langchain[anthropic]>=1.0",
+    "langchain-openai>=1.0",
+    "langchain-text-splitters>=1.0",
+    "langgraph>=1.0",
+    "langchain-mcp-adapters>=0.3.2",
+    # adapters require the 1.x MCP SDK; this keeps uv from pulling fastmcp builds on mcp 2.x
+    "mcp>=1.24,<2",
+    "fastmcp>=2.0",
+    "python-dotenv>=1.0",
+    "streamlit>=1.40",
+    "langgraph-checkpoint-postgres>=2.0",
+    "psycopg[binary,pool]>=3.2",
+    "langchain-postgres>=0.0.16",
+]
+
+[project.scripts]
+lc-demo = "lc_demo.main:main"
+lc-demo-adduser = "lc_demo.auth:main"
+lc-demo-ingest = "lc_demo.rag:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lc_demo"]

@@ -1,0 +1,20 @@
+services:
+  postgres:
+    # Postgres 17 with the pgvector extension (used by the RAG step).
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: lc_demo
+      POSTGRES_PASSWORD: lc_demo
+      POSTGRES_DB: lc_demo
+    ports:
+      # 5433 so it doesn't clash with a locally installed Postgres on 5432.
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lc_demo"]
+      interval: 2s
+      retries: 15
+
+volumes:
+  pgdata:
