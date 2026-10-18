@@ -28,6 +28,16 @@ PRICE_OUTPUT_PER_MTOK = float(os.getenv("LC_PRICE_OUTPUT_PER_MTOK", "15"))
 # Where "today" and "this month" start for the limits.
 TIMEZONE = os.getenv("LC_TIMEZONE", "America/Sao_Paulo")
 
+# Password-reset emails (mailer.py). The "forgot password" option only appears when SMTP_HOST is set.
+SMTP_HOST = os.getenv("SMTP_HOST", "")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))  # 587 = STARTTLS, 465 = implicit TLS
+SMTP_USERNAME = os.getenv("SMTP_USERNAME", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_FROM = os.getenv("SMTP_FROM", SMTP_USERNAME)
+# Public address of the web UI; reset links point here.
+APP_URL = os.getenv("APP_URL", "http://localhost:8501").rstrip("/")
+RESET_LINK_MINUTES = int(os.getenv("LC_RESET_LINK_MINUTES", "30"))
+
 
 def redact(url: str) -> str:
     """URL with the password masked, safe to show in errors or logs."""

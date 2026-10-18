@@ -13,18 +13,32 @@ from functools import cache
 
 import psycopg
 
-from lc_demo.config import DATABASE_URL, redact
+from lc_demo.config import DATABASE_URL, RESET_LINK_MINUTES, redact
 
 # OWASP-recommended scrypt cost; ~50 ms per check, which also slows brute force.
 _N, _R, _P = 2**14, 8, 1
 
 # The account id is the user's email, stored lowercased in `username` (also the key in `conversations`).
-SCHEMA = """
+SCHEMA = (
+    """
 CREATE TABLE IF NOT EXISTS users (
     username      TEXT PRIMARY KEY,
     password_hash TEXT NOT NULL,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
-)"""
+)""",
+    # Password-reset links. Only a SHA-256 of each token is kept, so a database leak yields no usable links.
+    """
+CREATE TABLE IF NOT EXISTS password_resets (
+    token_hash TEXT PRIMARY KEY,
+    username   TEXT NOT NULL REFERENCES users (username) ON DELETE CASCADE ON UPDATE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    used_at    TIMESTAMPTZ
+)""",
+)
+
+# At most one reset email per account in this window, so the form can't be used to flood an inbox.
+RESET_COOLDOWN_SECONDS = 120
 
 
 # Shape check only (something@domain.tld); proving ownership would need a confirmation email.
@@ -67,7 +81,8 @@ _DUMMY_HASH = hash_password(secrets.token_hex(16))
 @cache
 def _ensure_schema() -> None:
     with psycopg.connect(DATABASE_URL, autocommit=True) as conn:
-        conn.execute(SCHEMA)
+        for statement in SCHEMA:
+            conn.execute(statement)
 
 
 def _connect() -> psycopg.Connection:
@@ -119,6 +134,65 @@ def authenticate(email: str, password: str) -> bool:
         verify_password(password, _DUMMY_HASH)
         return False
     return verify_password(password, row[0])
+
+
+def _token_hash(token: str) -> str:
+    # Tokens are 256-bit random, so a plain fast hash is enough (no salt/scrypt needed).
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def create_reset_token(email: str) -> str | None:
+    """New single-use reset token for this account, or None if there's no such account or one was just sent."""
+    email = normalize_email(email)
+    token = secrets.token_urlsafe(32)
+    with _connect() as conn:
+        cur = conn.execute(
+            """INSERT INTO password_resets (token_hash, username, expires_at)
+               SELECT %(hash)s, u.username, now() + make_interval(mins => %(minutes)s)
+               FROM users u
+               WHERE u.username = %(email)s
+                 AND NOT EXISTS (SELECT 1 FROM password_resets r WHERE r.username = u.username
+                                 AND r.created_at > now() - make_interval(secs => %(cooldown)s))""",
+            {
+                "hash": _token_hash(token),
+                "email": email,
+                "minutes": RESET_LINK_MINUTES,
+                "cooldown": RESET_COOLDOWN_SECONDS,
+            },
+        )
+        return token if cur.rowcount == 1 else None
+
+
+def reset_token_is_valid(token: str) -> bool:
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM password_resets WHERE token_hash = %s AND used_at IS NULL AND expires_at > now()",
+            (_token_hash(token),),
+        ).fetchone()
+    return row is not None
+
+
+def reset_password(token: str, new_password: str) -> str | None:
+    """Set a new password from a reset link; returns the account's email, or None if the link is invalid/expired.
+
+    Raises ValueError (message for the user) if the new password isn't acceptable.
+    """
+    if len(new_password) < MIN_PASSWORD_LENGTH:
+        raise ValueError(f"A senha deve ter pelo menos {MIN_PASSWORD_LENGTH} caracteres.")
+    with _connect() as conn, conn.transaction():
+        row = conn.execute(
+            """UPDATE password_resets SET used_at = now()
+               WHERE token_hash = %s AND used_at IS NULL AND expires_at > now()
+               RETURNING username""",
+            (_token_hash(token),),
+        ).fetchone()
+        if row is None:
+            return None
+        (email,) = row
+        conn.execute("UPDATE users SET password_hash = %s WHERE username = %s", (hash_password(new_password), email))
+        # Any other outstanding links for this account stop working too.
+        conn.execute("UPDATE password_resets SET used_at = now() WHERE username = %s AND used_at IS NULL", (email,))
+        return email
 
 
 def main() -> None:

@@ -4,10 +4,13 @@ import pytest
 from lc_demo.auth import (
     _connect,
     authenticate,
+    create_reset_token,
     create_user,
     has_users,
     hash_password,
     is_valid_email,
+    reset_password,
+    reset_token_is_valid,
     save_user,
     verify_password,
 )
@@ -101,3 +104,46 @@ def test_signup_never_overwrites_an_existing_account(users_db):
 def test_short_passwords_are_rejected(create):
     with pytest.raises(ValueError, match="pelo menos 8"):
         create("test-short@example.com", "1234567")
+
+
+def test_reset_token_flow(users_db):
+    save_user("test-reset@example.com", "old-password-1")
+    assert create_reset_token("test-nobody@example.com") is None  # unknown account: no token, no email
+
+    token = create_reset_token(" Test-Reset@Example.com ")
+    assert token and reset_token_is_valid(token)
+    with _connect() as conn:
+        stored = [r[0] for r in conn.execute("SELECT token_hash FROM password_resets WHERE username LIKE 'test-%'")]
+    assert stored and token not in stored  # only the hash is kept
+
+    assert create_reset_token("test-reset@example.com") is None  # cooldown: no second email right away
+
+    with pytest.raises(ValueError, match="pelo menos 8"):
+        reset_password(token, "short")
+    assert reset_token_is_valid(token)  # a rejected password doesn't burn the link
+
+    assert reset_password(token, "new-password-1") == "test-reset@example.com"
+    assert authenticate("test-reset@example.com", "new-password-1")
+    assert not authenticate("test-reset@example.com", "old-password-1")
+    assert not reset_token_is_valid(token)
+    assert reset_password(token, "another-password") is None  # single use
+
+
+def test_reset_links_expire_and_using_one_revokes_the_rest(users_db):
+    save_user("test-reset2@example.com", "old-password-1")
+    first = create_reset_token("test-reset2@example.com")
+    with _connect() as conn:  # step past the cooldown
+        conn.execute("UPDATE password_resets SET created_at = now() - interval '10 minutes'")
+    second = create_reset_token("test-reset2@example.com")
+    assert first and second and reset_token_is_valid(first)
+
+    assert reset_password(second, "new-password-1")
+    assert not reset_token_is_valid(first)
+
+    with _connect() as conn:
+        conn.execute("UPDATE password_resets SET created_at = now() - interval '1 hour'")
+    expired = create_reset_token("test-reset2@example.com")
+    with _connect() as conn:
+        conn.execute("UPDATE password_resets SET expires_at = now() - interval '1 second' WHERE used_at IS NULL")
+    assert not reset_token_is_valid(expired)
+    assert reset_password(expired, "whatever-123") is None

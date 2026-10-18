@@ -69,6 +69,10 @@ Each user gets `LC_DAILY_MESSAGE_LIMIT` messages a day (default 20) and the whol
 (`usage.py`, `usage_log` table). Set `LC_PRICE_*_PER_MTOK` if you change `LC_MODEL`. Also set a
 spend limit in the Anthropic and OpenAI consoles as a hard ceiling.
 
+"Esqueceu a senha?" emails a single-use reset link (valid 30 minutes, only its hash is stored)
+through any SMTP provider (`mailer.py`). It appears once `SMTP_HOST`, `SMTP_USERNAME`,
+`SMTP_PASSWORD`, `SMTP_FROM` and `APP_URL` are set; see `cloud-secrets.example.toml`.
+
 Sign-up is open to anyone who can reach the app, and every chat uses your API keys.
 Sign-up never changes an existing account; to reset a password, rerun `lc-demo-adduser`.
 The CLI demos keep conversation memory in `InMemorySaver`.

@@ -14,9 +14,19 @@ import streamlit as st
 from langchain_core.messages import AIMessage, HumanMessage
 from psycopg_pool import PoolTimeout
 
-from lc_demo import db, ui, usage
+from lc_demo import db, mailer, ui, usage
 from lc_demo.agent import build_full_agent
-from lc_demo.auth import MIN_PASSWORD_LENGTH, authenticate, create_user, has_users, normalize_email
+from lc_demo.auth import (
+    MIN_PASSWORD_LENGTH,
+    authenticate,
+    create_reset_token,
+    create_user,
+    has_users,
+    is_valid_email,
+    normalize_email,
+    reset_password,
+    reset_token_is_valid,
+)
 from lc_demo.config import DAILY_MESSAGE_LIMIT, DATABASE_URL, redact
 from lc_demo.main import user
 
@@ -29,6 +39,12 @@ DB_DOWN = (
 DAILY_LIMIT_REACHED = f"Você atingiu seu limite diário de mensagens ({DAILY_MESSAGE_LIMIT}). Volte amanhã!"
 UNAVAILABLE = "O assistente está temporariamente indisponível. Por favor, volte mais tarde."
 REPLY_FAILED = "Algo deu errado ao gerar a resposta. Tente novamente em instantes."
+# Same reply whether or not the account exists, so the form can't be used to discover accounts.
+RESET_SENT = (
+    "Se houver uma conta com este e-mail, você receberá um link para criar uma nova senha em instantes. "
+    "Confira também a caixa de spam."
+)
+RESET_INVALID = "Este link é inválido, já foi usado ou expirou. Peça um novo."
 
 logger = logging.getLogger(__name__)
 
@@ -91,8 +107,14 @@ async def stream_reply(agent, text: str, config: dict) -> AsyncIterator[str]:
 # --- pages ---
 
 
-def show_signup(value: bool) -> None:
-    st.session_state.signing_up = value
+def show_view(view: str) -> None:
+    """Switch the login page between "login", "signup" and "forgot"."""
+    st.session_state.view = view
+
+
+def leave_reset(view: str = "login") -> None:
+    st.query_params.clear()
+    show_view(view)
 
 
 def login_page() -> None:
@@ -106,8 +128,13 @@ def login_page() -> None:
         except psycopg.OperationalError:
             st.error(DB_DOWN)
             st.stop()
-        if st.session_state.get("signing_up") or not any_users:
+        view = st.session_state.get("view", "login")
+        if token := st.query_params.get("reset"):
+            reset_form(token)
+        elif view == "signup" or not any_users:
             signup_form(first_user=not any_users)
+        elif view == "forgot" and mailer.is_configured():
+            forgot_form()
         else:
             login_form()
     st.stop()
@@ -123,8 +150,10 @@ def login_form() -> None:
                 st.session_state.user = normalize_email(email)
                 st.rerun()
             st.error("E-mail ou senha inválidos.")
+    if mailer.is_configured():
+        st.button("Esqueceu a senha?", key="forgot-link", type="tertiary", on_click=show_view, args=("forgot",))
     st.button(
-        "Primeira vez aqui? **Crie uma conta**", type="tertiary", on_click=show_signup, args=(True,), width="stretch"
+        "Primeira vez aqui? **Crie uma conta**", type="tertiary", on_click=show_view, args=("signup",), width="stretch"
     )
 
 
@@ -160,17 +189,73 @@ def signup_form(first_user: bool) -> None:
             if error := signup_error(email, password, confirm):
                 st.error(error)
             else:
-                st.session_state.signing_up = False
+                st.session_state.view = "login"
                 st.session_state.user = normalize_email(email)
                 st.rerun()
     if not first_user:
         st.button(
             "Já tem uma conta? **Entrar**",
             type="tertiary",
-            on_click=show_signup,
-            args=(False,),
+            on_click=show_view,
+            args=("login",),
             width="stretch",
         )
+
+
+def send_reset_link(email: str) -> None:
+    if token := create_reset_token(email):
+        try:
+            mailer.send_reset_email(normalize_email(email), token)
+        except Exception:
+            # Still show the generic reply: an error here would reveal that the account exists.
+            logger.exception("Could not send the password reset email")
+
+
+def forgot_form() -> None:
+    ui.auth_header(
+        "03 / Recuperar senha",
+        "Esqueceu a senha?",
+        "Informe seu e-mail e enviaremos um link para você criar uma nova senha.",
+    )
+    with st.form("forgot"):
+        email = st.text_input("E-mail", placeholder="voce@exemplo.com", autocomplete="email")
+        if st.form_submit_button("Enviar link", type="primary", icon=":material/north_east:", width="stretch"):
+            if is_valid_email(email):
+                send_reset_link(email)
+                st.success(RESET_SENT)
+            else:
+                st.error("Informe um endereço de e-mail válido.")
+    st.button("Lembrou a senha? **Entrar**", type="tertiary", on_click=show_view, args=("login",), width="stretch")
+
+
+def reset_form(token: str) -> None:
+    ui.auth_header("04 / Nova senha", "Crie uma nova senha.", f"Use pelo menos {MIN_PASSWORD_LENGTH} caracteres.")
+    if not reset_token_is_valid(token):
+        st.error(RESET_INVALID)
+        if mailer.is_configured():
+            st.button("Pedir um novo link", type="primary", on_click=leave_reset, args=("forgot",))
+        st.button("Voltar para o login", type="tertiary", on_click=leave_reset, width="stretch")
+        return
+    with st.form("reset"):
+        password = st.text_input("Nova senha", type="password", autocomplete="new-password")
+        confirm = st.text_input("Confirme a nova senha", type="password", autocomplete="new-password")
+        if st.form_submit_button("Salvar nova senha", type="primary", icon=":material/north_east:", width="stretch"):
+            if password != confirm:
+                st.error("As senhas não coincidem.")
+            else:
+                try:
+                    email = reset_password(token, password)
+                except ValueError as e:
+                    st.error(str(e))
+                else:
+                    if email is None:
+                        st.error(RESET_INVALID)
+                    else:
+                        st.query_params.clear()
+                        st.session_state.view = "login"
+                        st.session_state.user = email
+                        st.rerun()
+    st.button("Voltar para o login", type="tertiary", on_click=leave_reset, width="stretch")
 
 
 def sidebar(pool, agent, username: str, messages_today: int) -> str | None:

@@ -141,6 +141,10 @@ CSS = f"""
   width: 100%;
 }}
 
+/* "Esqueceu a senha?" sits right-aligned under the password, as in the template. */
+.st-key-forgot-link {{ align-self: flex-end; margin-top: -.6rem; }}
+.st-key-forgot-link button p {{ font-size: .82rem; text-decoration: underline; text-underline-offset: 3px; }}
+
 /* Stack the panels on narrow screens. */
 @media (max-width: 640px) {{
   .st-key-intro {{ min-height: auto; padding: 2rem 1.5rem; }}
