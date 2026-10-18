@@ -5,7 +5,6 @@ chats survive server restarts. Each user only sees and loads their own conversat
 """
 
 import asyncio
-import json
 import logging
 import threading
 from collections.abc import AsyncIterator, Coroutine, Iterator
@@ -115,42 +114,49 @@ async def stream_reply(agent, text: str, config: dict) -> AsyncIterator[str]:
 
 REMEMBER_COOKIE = "prumo_lembrar"
 
+# The cookie is read and written in the browser and handed to Python through this component, because
+# Streamlit Community Cloud's proxy doesn't forward app cookies to st.context.cookies.
+COOKIE_BRIDGE = st.components.v2.component(
+    "prumo_cookie_bridge",
+    js="""
+export default function ({ data, setStateValue }) {
+  const name = "COOKIE_NAME";
+  if (data && typeof data.set === "string") {
+    const secure = location.protocol === "https:" ? "; Secure" : "";
+    document.cookie = `${name}=${data.set}; Max-Age=${data.maxAge}; Path=/; SameSite=Lax${secure}`;
+  }
+  const match = document.cookie.split("; ").find((c) => c.startsWith(name + "="));
+  const token = match ? match.slice(name.length + 1) : "";
+  // Report only changes, so reporting the value can't trigger an endless rerun loop.
+  if (window.__prumoCookie !== token) {
+    window.__prumoCookie = token;
+    setStateValue("token", token);
+  }
+}
+""".replace("COOKIE_NAME", REMEMBER_COOKIE),
+)
+
 
 def set_cookie(token: str | None) -> None:
-    """Queue a cookie write (token) or deletion (None); applied at the top of the next run."""
+    """Queue a cookie write (token) or deletion (None); the bridge applies it on the next run."""
     st.session_state.pending_cookie = token or ""
 
 
-def apply_pending_cookie() -> None:
-    """Write/delete the cookie in the browser. Runs in a run that isn't immediately rerun, so the script executes."""
-    if "pending_cookie" not in st.session_state:
-        return
-    token = st.session_state.pop("pending_cookie")
-    max_age = REMEMBER_DAYS * 86400 if token else 0
-    st.html(
-        f"""<script>
-        document.cookie = {json.dumps(REMEMBER_COOKIE + "=" + token)} + "; Max-Age={max_age}; Path=/; SameSite=Lax"
-            + (location.protocol === "https:" ? "; Secure" : "");
-        </script>""",
-        unsafe_allow_javascript=True,  # fixed script; the token is URL-safe base64 from secrets.token_urlsafe
-    )
-
-
-def cookie_token() -> str | None:
-    """The remember-me token from this session's cookies, if it's a plausible value."""
-    token = st.context.cookies.get(REMEMBER_COOKIE)
-    # Cookies are client input; also, st.context is a MagicMock under streamlit.testing.
+def cookie_bridge() -> str | None:
+    """Mount the bridge: apply any queued cookie change and return the cookie's current token."""
+    pending = st.session_state.pop("pending_cookie", None)
+    data = {"set": pending, "maxAge": REMEMBER_DAYS * 86400 if pending else 0} if pending is not None else {}
+    result = COOKIE_BRIDGE(key="remember-cookie", data=data, height=0, on_token_change=lambda: None)
+    token = getattr(result, "token", None)
+    # Cookies are client input (and the result is a mock under streamlit.testing): accept only a string.
     return token if isinstance(token, str) and token else None
 
 
-def restore_session() -> None:
-    """Sign in from the "Manter conectado" cookie, once per browser session."""
-    if "user" in st.session_state or st.session_state.get("cookie_checked"):
+def restore_session(token: str | None) -> None:
+    """Sign in from the "Manter conectado" cookie; each token is looked up at most once per session."""
+    if "user" in st.session_state or not token or token == st.session_state.get("checked_token"):
         return
-    st.session_state.cookie_checked = True
-    token = cookie_token()
-    if not token:
-        return
+    st.session_state.checked_token = token
     try:
         email = user_for_remember_token(token)
     except psycopg.OperationalError:
@@ -158,17 +164,16 @@ def restore_session() -> None:
     if email:
         st.session_state.user = email
         st.session_state.remember_token = token
-    else:
-        set_cookie(None)  # expired or revoked: drop the stale cookie
+        st.rerun()  # redraw as the chat page
+    set_cookie(None)  # expired or revoked: drop the stale cookie
 
 
 def log_out() -> None:
-    # Cookies seen by this session are a snapshot from when it started, so prefer the token we know about.
-    token = st.session_state.get("remember_token") or cookie_token()
+    token = st.session_state.get("remember_token")
     if token:
         revoke_remember_token(token)
     st.session_state.clear()
-    st.session_state.cookie_checked = True
+    st.session_state.checked_token = token  # the bridge may still report it until the cookie is gone
     set_cookie(None)
 
 
@@ -418,9 +423,8 @@ def chat_page(username: str) -> None:
 
 
 # The login page is a full-width split screen; the chat keeps Streamlit's centered column.
-restore_session()
 st.set_page_config(page_title=APP_NAME, page_icon="🧾", layout="centered" if "user" in st.session_state else "wide")
-apply_pending_cookie()
+restore_session(cookie_bridge())
 if "user" not in st.session_state:
     login_page()
 chat_page(st.session_state.user)
