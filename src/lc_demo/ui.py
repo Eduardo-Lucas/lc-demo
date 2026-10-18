@@ -181,7 +181,7 @@ INTRO = f"""
   <p class="lede">Um assistente de chat para a conformidade tributária brasileira. Pergunte como
   perguntaria a um colega: ele consulta a fonte certa antes de responder e avisa quando não sabe.</p>
   <ul class="features">
-    <li><span><b>Consulta de CNPJ</b> — razão social e situação cadastral, direto da base da Receita Federal.</span></li>
+    <li><span><b>Consulta de CNPJ</b> — razão social e situação cadastral, na base da Receita Federal.</span></li>
     <li><span><b>Regras da ECF</b> — respostas baseadas no manual da ECF, por busca semântica.</span></li>
     <li><span><b>Prazos de entrega</b> — consultados em um servidor de ferramentas MCP dedicado.</span></li>
     <li><span><b>Seu histórico</b> — cada conversa fica salva na sua conta.</span></li>

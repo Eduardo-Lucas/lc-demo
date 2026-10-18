@@ -10,14 +10,19 @@ from lc_demo import rag
 from lc_demo.config import DATABASE_URL
 
 TEST_TABLE = "test_manual_chunks"
+# A small stand-in for data/manual/, so tests don't depend on (or embed) the real manual.
+SAMPLE = "A ECF deve ser transmitida até o último dia útil de julho. " * 40
 
 
 @pytest.fixture
-def fake_rag(monkeypatch):
+def fake_rag(monkeypatch, tmp_path_factory):
     try:
         psycopg.connect(DATABASE_URL, connect_timeout=2).close()
     except psycopg.OperationalError:
         pytest.skip("Postgres not reachable")
+    manual_dir = tmp_path_factory.mktemp("manual")
+    (manual_dir / "sample.txt").write_text(SAMPLE, encoding="utf-8")
+    monkeypatch.setattr(rag, "MANUAL_DIR", manual_dir)
     monkeypatch.setattr(rag, "TABLE", TEST_TABLE)
     monkeypatch.setattr(rag, "get_embeddings", lambda: DeterministicFakeEmbedding(size=16))
     rag.get_store.cache_clear()
@@ -36,10 +41,9 @@ def test_first_search_builds_the_table(fake_rag):
     assert not rag._table_exists()
     result = rag.search_manual.invoke({"query": "who must file the ECF"})
     assert rag._table_exists()
-    manual = (rag.MANUAL_DIR / "manual_ecf.txt").read_text(encoding="utf-8")
     for passage in result.split("\n\n---\n\n"):
         source, text = passage.split("\n", 1)
-        assert source == "[manual_ecf.txt]" and text in manual
+        assert source == "[sample.txt]" and text in SAMPLE
 
 
 def test_rebuilds_replace_the_table_and_can_repeat(fake_rag):

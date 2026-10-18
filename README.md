@@ -12,7 +12,7 @@ lc-demo/
 ├── .env.example            # copy to .env and fill in keys
 ├── docker-compose.yml      # Postgres + pgvector (port 5433)
 ├── data/
-│   └── manual/             # RAG source: every UTF-8 .txt here is indexed (sample text)
+│   └── manual/             # RAG source: every UTF-8 .txt here is indexed (ECF manual, leiaute 12)
 ├── mcp_servers/
 │   └── fiscal_server.py    # FastMCP server, launched over stdio
 ├── src/lc_demo/
