@@ -72,7 +72,9 @@ by token, and tool calls show inline. Set `DATABASE_URL` to use another Postgres
 
 Each user gets `LC_DAILY_MESSAGE_LIMIT` messages a day (default 20) and the whole app stops at
 `LC_MONTHLY_BUDGET_USD` per month (default 20), metered from the token counts each reply reports
-(`usage.py`, `usage_log` table). Set `LC_PRICE_*_PER_MTOK` if you change `LC_MODEL`. Also set a
+(`usage.py`, `usage_log` table). Set `LC_PRICE_*_PER_MTOK` if you change `LC_MODEL`. `LC_EFFORT`
+(default `low`) sets how much current Claude models think before answering; models that don't support
+it ignore it. Also set a
 spend limit in the Anthropic and OpenAI consoles as a hard ceiling.
 
 "Esqueceu a senha?" emails a single-use reset link (valid 30 minutes, only its hash is stored)

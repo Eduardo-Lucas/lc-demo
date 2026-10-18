@@ -6,7 +6,7 @@ from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel, Field
 
-from lc_demo.config import ANTHROPIC_WORKSPACE_ID, MODEL
+from lc_demo.config import ANTHROPIC_WORKSPACE_ID, EFFORT, MODEL
 
 
 @cache
@@ -15,7 +15,12 @@ def get_model() -> BaseChatModel:
     kwargs = {}
     if ANTHROPIC_WORKSPACE_ID:
         kwargs["default_headers"] = {"anthropic-workspace-id": ANTHROPIC_WORKSPACE_ID}
-    return init_chat_model(MODEL, temperature=0, **kwargs)
+    # No temperature: current Claude models reject non-default values.
+    model = init_chat_model(MODEL, **kwargs)
+    # Current Claude models always think and effort sets how much; older ones (and other providers) reject it.
+    if EFFORT in (model.profile or {}).get("reasoning_effort_levels", ()):
+        model = init_chat_model(MODEL, effort=EFFORT, **kwargs)
+    return model
 
 
 class Invoice(BaseModel):
@@ -25,4 +30,5 @@ class Invoice(BaseModel):
 
 
 def extract_invoice(text: str) -> Invoice:
-    return get_model().with_structured_output(Invoice).invoke(text)
+    # Native JSON-schema output: current Claude models reject the forced tool call LangChain uses by default.
+    return get_model().with_structured_output(Invoice, method="json_schema").invoke(text)

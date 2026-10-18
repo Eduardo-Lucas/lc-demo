@@ -16,9 +16,9 @@ def _response(status: int) -> httpx2.Response:
 
 
 def test_cost_uses_per_million_prices():
-    # Defaults: $3 input, $15 output per million tokens.
-    assert usage.cost_usd(1_000_000, 0) == pytest.approx(3.0)
-    assert usage.cost_usd(2_000, 1_000) == pytest.approx(0.021)
+    # Defaults: $2 input, $10 output per million tokens.
+    assert usage.cost_usd(1_000_000, 0) == pytest.approx(2.0)
+    assert usage.cost_usd(2_000, 1_000) == pytest.approx(0.014)
 
 
 def test_tokens_used_sums_every_model_call_in_the_turn():
@@ -68,13 +68,13 @@ def test_status_counts_today_per_user_and_month_for_everyone():
         try:
             await db.setup(pool)
             before = await usage.status(pool, "test-a@example.com")
-            await usage.record(pool, "test-a@example.com", 2_000, 1_000)  # $0.021
-            await usage.record(pool, "test-a@example.com", 1_000, 0)  # $0.003
-            await usage.record(pool, "test-b@example.com", 0, 1_000)  # $0.015
+            await usage.record(pool, "test-a@example.com", 2_000, 1_000)  # $0.014
+            await usage.record(pool, "test-a@example.com", 1_000, 0)  # $0.002
+            await usage.record(pool, "test-b@example.com", 0, 1_000)  # $0.010
             a = await usage.status(pool, "test-a@example.com")
             b = await usage.status(pool, "test-b@example.com")
             assert (before.messages_today, a.messages_today, b.messages_today) == (0, 2, 1)
-            assert a.month_cost_usd == pytest.approx(before.month_cost_usd + 0.039)
+            assert a.month_cost_usd == pytest.approx(before.month_cost_usd + 0.026)
             assert a.month_cost_usd == b.month_cost_usd  # the budget is shared by the whole app
         finally:
             async with pool.connection() as conn:
