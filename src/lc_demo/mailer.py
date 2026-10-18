@@ -30,7 +30,8 @@ def send(message: EmailMessage) -> None:
     else:
         smtp = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15)
     with smtp:
-        if SMTP_PORT != 465 and smtp.has_extn("starttls"):
+        if SMTP_PORT != 465:
+            # Always upgrade to TLS (starttls() sends EHLO itself); fail rather than send credentials in clear.
             smtp.starttls(context=context)
         if SMTP_USERNAME:
             smtp.login(SMTP_USERNAME, SMTP_PASSWORD)

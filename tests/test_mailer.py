@@ -2,10 +2,12 @@ from lc_demo import mailer
 
 
 class FakeSMTP:
+    """Behaves like Gmail: AUTH is only offered once the connection is upgraded with STARTTLS."""
+
     sent = []
 
     def __init__(self, host, port, timeout):
-        self.host, self.port, self.calls = host, port, []
+        self.host, self.port, self.calls, self.tls = host, port, [], False
 
     def __enter__(self):
         return self
@@ -14,12 +16,16 @@ class FakeSMTP:
         return False
 
     def has_extn(self, name):
-        return name == "starttls"
+        # Like smtplib before EHLO: no features known yet.
+        return False
 
     def starttls(self, context):
+        self.tls = True
         self.calls.append("starttls")
 
     def login(self, user, password):
+        if not self.tls:
+            raise mailer.smtplib.SMTPNotSupportedError("SMTP AUTH extension not supported by server.")
         self.calls.append(("login", user))
 
     def send_message(self, message):
