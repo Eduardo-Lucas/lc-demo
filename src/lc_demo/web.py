@@ -137,6 +137,7 @@ def login_page() -> None:
             forgot_form()
         else:
             login_form()
+        ui.pilot_notice()
     st.stop()
 
 

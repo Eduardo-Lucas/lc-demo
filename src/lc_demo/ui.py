@@ -147,6 +147,20 @@ CSS = f"""
 .st-key-forgot-link {{ align-self: flex-end; margin-top: -.6rem; }}
 .st-key-forgot-link button p {{ font-size: .82rem; text-decoration: underline; text-underline-offset: 3px; }}
 
+/* Pilot notice under every form (login, sign-up, password reset). */
+.pilot {{
+  font-family: Inter, sans-serif; margin-top: 1rem; padding: .9rem 1rem; border-radius: .6rem;
+  background: var(--panel); border: 1px solid var(--line); font-size: .8rem; line-height: 1.5; color: var(--muted);
+}}
+.pilot b {{
+  display: block; font-size: .62rem; font-weight: 600; letter-spacing: .2em; color: var(--accent);
+  margin-bottom: .25rem;
+}}
+.brand .pill {{
+  font-size: .58rem; font-weight: 600; letter-spacing: .16em; color: var(--accent); background: var(--card);
+  border-radius: 1rem; padding: .2rem .55rem; margin-left: .2rem;
+}}
+
 /* Stack the panels on narrow screens. */
 @media (max-width: 640px) {{
   .st-key-intro {{ min-height: auto; padding: 2rem 1.5rem; }}
@@ -159,13 +173,15 @@ CSS = f"""
 
 INTRO = f"""
 <div class="intro">
-  <div class="brand"><span class="mark">§</span>{APP_NAME}<span class="tag">ASSISTENTE COM IA</span></div>
+  <div class="brand">
+    <span class="mark">§</span>{APP_NAME}<span class="tag">ASSISTENTE COM IA</span><span class="pill">PILOTO</span>
+  </div>
   <p class="eyebrow">Conformidade fiscal brasileira, em linguagem simples</p>
   <h1>Respostas fiscais,<br>sem a<br><em>papelada.</em></h1>
   <p class="lede">Um assistente de chat para a conformidade tributária brasileira. Pergunte como
   perguntaria a um colega: ele consulta a fonte certa antes de responder e avisa quando não sabe.</p>
   <ul class="features">
-    <li><span><b>Consulta de CNPJ</b> — valida os dígitos verificadores e informa a situação cadastral.</span></li>
+    <li><span><b>Consulta de CNPJ</b> — razão social e situação cadastral, direto da base da Receita Federal.</span></li>
     <li><span><b>Regras da ECF</b> — respostas baseadas no manual da ECF, por busca semântica.</span></li>
     <li><span><b>Prazos de entrega</b> — consultados em um servidor de ferramentas MCP dedicado.</span></li>
     <li><span><b>Seu histórico</b> — cada conversa fica salva na sua conta.</span></li>
@@ -180,6 +196,11 @@ INTRO = f"""
 </div>
 """
 
+PILOT_NOTICE = f"""
+<div class="pilot"><b>VERSÃO PILOTO</b>O {APP_NAME} está em fase de testes. As respostas apoiam a sua análise,
+mas não substituem a avaliação de um profissional habilitado: confira na fonte oficial antes de decidir.</div>
+"""
+
 FOOTNOTE = (
     '<div class="intro footnote"><span>Feito com LangChain, LangGraph, MCP e Streamlit.</span><span>✳</span></div>'
 )
@@ -190,6 +211,10 @@ def intro_panel() -> None:
     with st.container(key="intro"):
         st.html(INTRO)
         st.html(FOOTNOTE)
+
+
+def pilot_notice() -> None:
+    st.html(PILOT_NOTICE)
 
 
 def auth_header(step: str, title: str, subtitle: str) -> None:
