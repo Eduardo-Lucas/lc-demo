@@ -25,8 +25,6 @@ CSS = f"""
 /* Full-bleed page: drop Streamlit's centered padding on the login page only. */
 [data-testid="stMainBlockContainer"] {{ padding: 0; max-width: 100%; }}
 [data-testid="stHeader"] {{ background: transparent; }}
-/* The invisible cookie bridge (web.py) would otherwise add a layout gap above the panels. */
-.st-key-remember-cookie {{ display: none; }}
 .stMain [data-testid="stHorizontalBlock"] {{ min-height: 100vh; gap: 0; }}
 
 /* Left panel */

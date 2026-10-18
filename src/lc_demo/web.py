@@ -19,7 +19,6 @@ from lc_demo.agent import build_full_agent
 from lc_demo.auth import (
     MIN_PASSWORD_LENGTH,
     authenticate,
-    create_remember_token,
     create_reset_token,
     create_user,
     has_users,
@@ -27,10 +26,8 @@ from lc_demo.auth import (
     normalize_email,
     reset_password,
     reset_token_is_valid,
-    revoke_remember_token,
-    user_for_remember_token,
 )
-from lc_demo.config import APP_NAME, DAILY_MESSAGE_LIMIT, DATABASE_URL, REMEMBER_DAYS, redact
+from lc_demo.config import APP_NAME, DAILY_MESSAGE_LIMIT, DATABASE_URL, redact
 from lc_demo.main import user
 
 # The interface is in Brazilian Portuguese (the app's audience); code and logs stay in English.
@@ -110,73 +107,6 @@ async def stream_reply(agent, text: str, config: dict) -> AsyncIterator[str]:
 # --- pages ---
 
 
-# --- "Manter conectado": a cookie holding a random token (never the password) ---
-
-REMEMBER_COOKIE = "prumo_lembrar"
-
-# The cookie is read and written in the browser and handed to Python through this component, because
-# Streamlit Community Cloud's proxy doesn't forward app cookies to st.context.cookies.
-COOKIE_BRIDGE = st.components.v2.component(
-    "prumo_cookie_bridge",
-    js="""
-export default function ({ data, setStateValue }) {
-  const name = "COOKIE_NAME";
-  if (data && typeof data.set === "string") {
-    const secure = location.protocol === "https:" ? "; Secure" : "";
-    document.cookie = `${name}=${data.set}; Max-Age=${data.maxAge}; Path=/; SameSite=Lax${secure}`;
-  }
-  const match = document.cookie.split("; ").find((c) => c.startsWith(name + "="));
-  const token = match ? match.slice(name.length + 1) : "";
-  // Report only changes, so reporting the value can't trigger an endless rerun loop.
-  if (window.__prumoCookie !== token) {
-    window.__prumoCookie = token;
-    setStateValue("token", token);
-  }
-}
-""".replace("COOKIE_NAME", REMEMBER_COOKIE),
-)
-
-
-def set_cookie(token: str | None) -> None:
-    """Queue a cookie write (token) or deletion (None); the bridge applies it on the next run."""
-    st.session_state.pending_cookie = token or ""
-
-
-def cookie_bridge() -> str | None:
-    """Mount the bridge: apply any queued cookie change and return the cookie's current token."""
-    pending = st.session_state.pop("pending_cookie", None)
-    data = {"set": pending, "maxAge": REMEMBER_DAYS * 86400 if pending else 0} if pending is not None else {}
-    result = COOKIE_BRIDGE(key="remember-cookie", data=data, height=0, on_token_change=lambda: None)
-    token = getattr(result, "token", None)
-    # Cookies are client input (and the result is a mock under streamlit.testing): accept only a string.
-    return token if isinstance(token, str) and token else None
-
-
-def restore_session(token: str | None) -> None:
-    """Sign in from the "Manter conectado" cookie; each token is looked up at most once per session."""
-    if "user" in st.session_state or not token or token == st.session_state.get("checked_token"):
-        return
-    st.session_state.checked_token = token
-    try:
-        email = user_for_remember_token(token)
-    except psycopg.OperationalError:
-        return  # the login page reports the database problem
-    if email:
-        st.session_state.user = email
-        st.session_state.remember_token = token
-        st.rerun()  # redraw as the chat page
-    set_cookie(None)  # expired or revoked: drop the stale cookie
-
-
-def log_out() -> None:
-    token = st.session_state.get("remember_token")
-    if token:
-        revoke_remember_token(token)
-    st.session_state.clear()
-    st.session_state.checked_token = token  # the bridge may still report it until the cookie is gone
-    set_cookie(None)
-
-
 def show_view(view: str) -> None:
     """Switch the login page between "login", "signup" and "forgot"."""
     st.session_state.view = view
@@ -217,14 +147,9 @@ def login_form() -> None:
         # Streamlit's default for password fields ("new-password") makes them offer to generate one instead.
         email = st.text_input("E-mail", placeholder="voce@exemplo.com", autocomplete="username")
         password = st.text_input("Senha", type="password", autocomplete="current-password")
-        remember = st.checkbox("Manter conectado", help=f"Neste navegador, por {REMEMBER_DAYS} dias.")
         if st.form_submit_button("Entrar", type="primary", icon=":material/north_east:", width="stretch"):
             if authenticate(email, password):
                 st.session_state.user = normalize_email(email)
-                if remember:
-                    token = create_remember_token(email)
-                    st.session_state.remember_token = token
-                    set_cookie(token)
                 st.rerun()
             st.error("E-mail ou senha inválidos.")
     if mailer.is_configured():
@@ -347,7 +272,7 @@ def sidebar(pool, agent, username: str, messages_today: int) -> str | None:
         st.write(f"Conectado como **{username}**")
         st.caption(f"Mensagens hoje: {min(messages_today, DAILY_MESSAGE_LIMIT)} de {DAILY_MESSAGE_LIMIT}")
         if st.button("Sair"):
-            log_out()
+            st.session_state.clear()
             st.rerun()
         st.divider()
         if st.button("➕ Nova conversa", width="stretch"):
@@ -427,7 +352,6 @@ def chat_page(username: str) -> None:
 
 # The login page is a full-width split screen; the chat keeps Streamlit's centered column.
 st.set_page_config(page_title=APP_NAME, page_icon="🧾", layout="centered" if "user" in st.session_state else "wide")
-restore_session(cookie_bridge())
 if "user" not in st.session_state:
     login_page()
 chat_page(st.session_state.user)
