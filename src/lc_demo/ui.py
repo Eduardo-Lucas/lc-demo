@@ -126,7 +126,7 @@ CSS = f"""
   color: var(--muted);
 }}
 .auth-head h2 {{ font-family: Inter, sans-serif; font-size: 2.3rem; font-weight: 600; letter-spacing: -.055em;
-  color: var(--ink); margin: .9rem 0 .5rem; padding: 0; }}
+  color: var(--ink); margin: .9rem 0 .5rem; padding: 0; line-height: 1.08; }}
 .auth-head p {{ color: var(--muted); font-size: .95rem; margin: 0 0 .6rem; }}
 .st-key-auth [data-testid="stForm"] {{ border: 0; padding: 0; }}
 .st-key-auth label p {{ font-weight: 600; color: var(--ink); font-size: .85rem; }}
@@ -153,29 +153,29 @@ CSS = f"""
 
 INTRO = """
 <div class="intro">
-  <div class="brand"><span class="mark">§</span>lc-demo<span class="tag">FISCAL ASSISTANT</span></div>
-  <p class="eyebrow">Brazilian fiscal compliance, in plain language</p>
-  <h1>Fiscal answers,<br>without the<br><em>paperwork.</em></h1>
-  <p class="lede">A chat assistant for Brazilian tax compliance. Ask a question the way you would ask
-  a colleague; it checks the right source before it answers, and says so when it doesn't know.</p>
+  <div class="brand"><span class="mark">§</span>lc-demo<span class="tag">ASSISTENTE FISCAL</span></div>
+  <p class="eyebrow">Conformidade fiscal brasileira, em linguagem simples</p>
+  <h1>Respostas fiscais,<br>sem a<br><em>papelada.</em></h1>
+  <p class="lede">Um assistente de chat para a conformidade tributária brasileira. Pergunte como
+  perguntaria a um colega: ele consulta a fonte certa antes de responder e avisa quando não sabe.</p>
   <ul class="features">
-    <li><span><b>CNPJ checks</b> — validates the check digits and reports registration status.</span></li>
-    <li><span><b>ECF rules</b> — answers grounded in the ECF manual, found by semantic search.</span></li>
-    <li><span><b>Filing deadlines</b> — looked up through a dedicated MCP tool server.</span></li>
-    <li><span><b>Your history</b> — every conversation is saved to your account.</span></li>
+    <li><span><b>Consulta de CNPJ</b> — valida os dígitos verificadores e informa a situação cadastral.</span></li>
+    <li><span><b>Regras da ECF</b> — respostas baseadas no manual da ECF, por busca semântica.</span></li>
+    <li><span><b>Prazos de entrega</b> — consultados em um servidor de ferramentas MCP dedicado.</span></li>
+    <li><span><b>Seu histórico</b> — cada conversa fica salva na sua conta.</span></li>
   </ul>
   <div class="art" aria-hidden="true">
     <div class="ring"></div>
-    <div class="card"><small>ASK ANYTHING</small><p>Is this CNPJ still active?</p><i></i><i></i></div>
+    <div class="card"><small>SUA PERGUNTA</small><p>Este CNPJ ainda está ativo?</p><i></i><i></i></div>
     <div class="check">✓</div>
-    <div class="chip">↗ ECF due July 2026</div>
+    <div class="chip">↗ ECF vence em julho/2026</div>
     <div class="spark">✳</div>
   </div>
 </div>
 """
 
 FOOTNOTE = (
-    '<div class="intro footnote"><span>Built with LangChain, LangGraph, MCP and Streamlit.</span><span>✳</span></div>'
+    '<div class="intro footnote"><span>Feito com LangChain, LangGraph, MCP e Streamlit.</span><span>✳</span></div>'
 )
 
 

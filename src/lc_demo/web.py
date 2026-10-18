@@ -19,10 +19,23 @@ from lc_demo.auth import MIN_PASSWORD_LENGTH, authenticate, create_user, has_use
 from lc_demo.config import DATABASE_URL, redact
 from lc_demo.main import user
 
+# The interface is in Brazilian Portuguese (the app's audience); code and logs stay in English.
 DB_DOWN = (
-    f"Can't reach Postgres at `{redact(DATABASE_URL)}`. "
-    "Locally, start it with `docker-compose up -d`; otherwise check `DATABASE_URL`."
+    f"Não foi possível conectar ao Postgres em `{redact(DATABASE_URL)}`. "
+    "Localmente, inicie-o com `docker-compose up -d`; caso contrário, verifique `DATABASE_URL`."
 )
+
+# Friendly names for the tool-call lines shown in the chat.
+TOOL_LABELS = {
+    "get_cnpj_status": "Consultando o CNPJ",
+    "search_manual": "Pesquisando no manual da ECF",
+    "ecf_deadline": "Consultando o prazo da ECF",
+    "list_obligations": "Listando as obrigações",
+}
+
+
+def tool_label(name: str) -> str:
+    return f"🔧 {TOOL_LABELS.get(name, name)}"
 
 
 # --- async bridge: Streamlit reruns are sync, the agent (MCP tools) and DB pool are async ---
@@ -63,7 +76,7 @@ def get_backend():
 async def stream_reply(agent, text: str, config: dict) -> AsyncIterator[str]:
     async for chunk, meta in agent.astream(user(text), config, stream_mode="messages"):
         if meta["langgraph_node"] == "tools":
-            yield f"\n\n*🔧 {chunk.name}*\n\n"
+            yield f"\n\n*{tool_label(chunk.name)}*\n\n"
         elif isinstance(chunk, AIMessage) and chunk.text:
             yield chunk.text
 
@@ -94,47 +107,49 @@ def login_page() -> None:
 
 
 def login_form() -> None:
-    ui.auth_header("01 / Sign in", "Welcome back.", "Sign in to pick up your conversations where you left them.")
+    ui.auth_header("01 / Entrar", "Que bom ver você de novo.", "Entre para continuar suas conversas de onde parou.")
     with st.form("login"):
-        email = st.text_input("Email address", placeholder="you@example.com", autocomplete="email")
-        password = st.text_input("Password", type="password")
-        if st.form_submit_button("Sign in", type="primary", icon=":material/north_east:", width="stretch"):
+        email = st.text_input("E-mail", placeholder="voce@exemplo.com", autocomplete="email")
+        password = st.text_input("Senha", type="password")
+        if st.form_submit_button("Entrar", type="primary", icon=":material/north_east:", width="stretch"):
             if authenticate(email, password):
                 st.session_state.user = normalize_email(email)
                 st.rerun()
-            st.error("Invalid email or password.")
-    st.button("New here? **Create an account**", type="tertiary", on_click=show_signup, args=(True,), width="stretch")
+            st.error("E-mail ou senha inválidos.")
+    st.button(
+        "Primeira vez aqui? **Crie uma conta**", type="tertiary", on_click=show_signup, args=(True,), width="stretch"
+    )
 
 
 def signup_error(email: str, password: str, confirm: str) -> str | None:
     """Create the account; return a message to show if that wasn't possible."""
     if password != confirm:
-        return "Passwords don't match."
+        return "As senhas não coincidem."
     try:
         created = create_user(email, password)
     except ValueError as e:
         return str(e)
-    return None if created else "An account with this email already exists. Sign in instead."
+    return None if created else "Já existe uma conta com este e-mail. Entre com ela."
 
 
 def signup_form(first_user: bool) -> None:
     if first_user:
         ui.auth_header(
-            "01 / Get started", "Create the first account.", "No one has signed up yet. This account will be the first."
+            "01 / Primeiros passos", "Crie a primeira conta.", "Ninguém se cadastrou ainda. Esta será a primeira conta."
         )
     else:
         ui.auth_header(
-            "02 / Create account",
-            "Get started.",
-            "Create an account to start asking questions. It takes a few seconds.",
+            "02 / Criar conta",
+            "Comece agora.",
+            "Crie uma conta para começar a fazer perguntas. Leva poucos segundos.",
         )
     with st.form("signup"):
-        email = st.text_input("Email address", placeholder="you@example.com", autocomplete="email")
+        email = st.text_input("E-mail", placeholder="voce@exemplo.com", autocomplete="email")
         password = st.text_input(
-            "Password", type="password", autocomplete="new-password", help=f"At least {MIN_PASSWORD_LENGTH} characters."
+            "Senha", type="password", autocomplete="new-password", help=f"Pelo menos {MIN_PASSWORD_LENGTH} caracteres."
         )
-        confirm = st.text_input("Confirm password", type="password", autocomplete="new-password")
-        if st.form_submit_button("Create account", type="primary", icon=":material/north_east:", width="stretch"):
+        confirm = st.text_input("Confirme a senha", type="password", autocomplete="new-password")
+        if st.form_submit_button("Criar conta", type="primary", icon=":material/north_east:", width="stretch"):
             if error := signup_error(email, password, confirm):
                 st.error(error)
             else:
@@ -143,7 +158,7 @@ def signup_form(first_user: bool) -> None:
                 st.rerun()
     if not first_user:
         st.button(
-            "Already have an account? **Sign in**",
+            "Já tem uma conta? **Entrar**",
             type="tertiary",
             on_click=show_signup,
             args=(False,),
@@ -159,12 +174,12 @@ def sidebar(pool, agent, username: str) -> str | None:
         st.session_state.thread = None
 
     with st.sidebar:
-        st.write(f"Logged in as **{username}**")
-        if st.button("Log out"):
+        st.write(f"Conectado como **{username}**")
+        if st.button("Sair"):
             st.session_state.clear()
             st.rerun()
         st.divider()
-        if st.button("➕ New chat", width="stretch"):
+        if st.button("➕ Nova conversa", width="stretch"):
             st.session_state.thread = None
             st.rerun()
         for conv in conversations:
@@ -179,7 +194,7 @@ def sidebar(pool, agent, username: str) -> str | None:
             ):
                 st.session_state.thread = thread_id
                 st.rerun()
-            if right.button("🗑", key=f"del-{thread_id}", help="Delete conversation", type="tertiary"):
+            if right.button("🗑", key=f"del-{thread_id}", help="Excluir conversa", type="tertiary"):
                 run(db.delete_conversation(pool, agent.checkpointer, username, thread_id))
                 st.rerun()
     return st.session_state.thread
@@ -192,7 +207,7 @@ def render_history(agent, config: dict) -> None:
         elif isinstance(msg, AIMessage):
             with st.chat_message("assistant"):
                 for call in msg.tool_calls:
-                    st.caption(f"🔧 {call['name']}")
+                    st.caption(tool_label(call["name"]))
                 if msg.text:
                     st.write(msg.text)
 
@@ -205,10 +220,10 @@ def chat_page(username: str) -> None:
         st.stop()
     thread = sidebar(pool, agent, username)
 
-    st.title("Fiscal assistant")
+    st.title("Assistente fiscal")
     if thread:
         render_history(agent, {"configurable": {"thread_id": thread}})
-    if text := st.chat_input("Ask about a CNPJ, ECF rules or filing deadlines…"):
+    if text := st.chat_input("Pergunte sobre um CNPJ, as regras da ECF ou prazos de entrega…"):
         is_new = thread is None
         if is_new:
             thread = st.session_state.thread = run(db.create_conversation(pool, username, text))

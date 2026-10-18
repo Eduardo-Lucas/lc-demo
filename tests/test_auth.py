@@ -99,5 +99,5 @@ def test_signup_never_overwrites_an_existing_account(users_db):
 
 @pytest.mark.parametrize("create", [create_user, save_user])
 def test_short_passwords_are_rejected(create):
-    with pytest.raises(ValueError, match="at least 8"):
+    with pytest.raises(ValueError, match="pelo menos 8"):
         create("test-short@example.com", "1234567")

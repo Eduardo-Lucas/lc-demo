@@ -81,11 +81,11 @@ def has_users() -> bool:
 
 
 def check_new_credentials(email: str, password: str) -> None:
-    """Raise ValueError with a message fit to show the user if these can't be used for an account."""
+    """Raise ValueError with a message for the user (in Portuguese, like the UI) if these can't be used."""
     if not is_valid_email(email):
-        raise ValueError("Enter a valid email address.")
+        raise ValueError("Informe um endereço de e-mail válido.")
     if len(password) < MIN_PASSWORD_LENGTH:
-        raise ValueError(f"Password must be at least {MIN_PASSWORD_LENGTH} characters.")
+        raise ValueError(f"A senha deve ter pelo menos {MIN_PASSWORD_LENGTH} caracteres.")
 
 
 def create_user(email: str, password: str) -> bool:

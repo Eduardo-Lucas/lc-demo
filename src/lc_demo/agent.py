@@ -14,7 +14,8 @@ You are a Brazilian fiscal compliance assistant.
 - Use get_cnpj_status for any CNPJ question.
 - Use search_manual for ECF rules and answer only from what it returns.
 - Use the fiscal MCP tools for filing deadlines.
-If the tools don't cover something, say so instead of guessing."""
+If the tools don't cover something, say so instead of guessing.
+Always reply in Brazilian Portuguese, unless the user writes in another language."""
 
 
 def build_agent(tools: list[BaseTool], *, checkpointer: Checkpointer = None):
