@@ -15,7 +15,7 @@ from psycopg_pool import PoolTimeout
 
 from lc_demo import db
 from lc_demo.agent import build_full_agent
-from lc_demo.auth import authenticate, has_users, normalize_email
+from lc_demo.auth import MIN_PASSWORD_LENGTH, authenticate, create_user, has_users, normalize_email
 from lc_demo.config import DATABASE_URL, redact
 from lc_demo.main import user
 
@@ -71,16 +71,26 @@ async def stream_reply(agent, text: str, config: dict) -> AsyncIterator[str]:
 # --- pages ---
 
 
+def show_signup(value: bool) -> None:
+    st.session_state.signing_up = value
+
+
 def login_page() -> None:
+    """Log-in or sign-up form; stops the script until someone is logged in."""
     st.title("lc-demo")
     try:
         any_users = has_users()
     except psycopg.OperationalError:
         st.error(DB_DOWN)
         st.stop()
-    if not any_users:
-        st.info("No users yet. Create one with `uv run lc-demo-adduser <email>`, then reload.")
-        st.stop()
+    if st.session_state.get("signing_up") or not any_users:
+        signup_form(first_user=not any_users)
+    else:
+        login_form()
+    st.stop()
+
+
+def login_form() -> None:
     with st.form("login"):
         email = st.text_input("Email", autocomplete="email")
         password = st.text_input("Password", type="password")
@@ -89,7 +99,37 @@ def login_page() -> None:
                 st.session_state.user = normalize_email(email)
                 st.rerun()
             st.error("Invalid email or password.")
-    st.stop()
+    st.button("Create an account", type="tertiary", on_click=show_signup, args=(True,))
+
+
+def signup_error(email: str, password: str, confirm: str) -> str | None:
+    """Create the account; return a message to show if that wasn't possible."""
+    if password != confirm:
+        return "Passwords don't match."
+    try:
+        created = create_user(email, password)
+    except ValueError as e:
+        return str(e)
+    return None if created else "An account with this email already exists. Log in instead."
+
+
+def signup_form(first_user: bool) -> None:
+    st.subheader("Create the first account" if first_user else "Create an account")
+    with st.form("signup"):
+        email = st.text_input("Email", autocomplete="email")
+        password = st.text_input(
+            "Password", type="password", autocomplete="new-password", help=f"At least {MIN_PASSWORD_LENGTH} characters."
+        )
+        confirm = st.text_input("Confirm password", type="password", autocomplete="new-password")
+        if st.form_submit_button("Create account", type="primary"):
+            if error := signup_error(email, password, confirm):
+                st.error(error)
+            else:
+                st.session_state.signing_up = False
+                st.session_state.user = normalize_email(email)
+                st.rerun()
+    if not first_user:
+        st.button("Back to log in", type="tertiary", on_click=show_signup, args=(False,))
 
 
 def sidebar(pool, agent, username: str) -> str | None:

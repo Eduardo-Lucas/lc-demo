@@ -31,6 +31,9 @@ CREATE TABLE IF NOT EXISTS users (
 _EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
 
 
+MIN_PASSWORD_LENGTH = 8
+
+
 def normalize_email(email: str) -> str:
     """Canonical account id, so `Ana@Example.com ` and `ana@example.com` are one account."""
     return email.strip().lower()
@@ -77,10 +80,28 @@ def has_users() -> bool:
         return conn.execute("SELECT EXISTS (SELECT 1 FROM users)").fetchone()[0]
 
 
-def save_user(email: str, password: str) -> None:
-    """Create the user, or reset their password if they already exist."""
+def check_new_credentials(email: str, password: str) -> None:
+    """Raise ValueError with a message fit to show the user if these can't be used for an account."""
     if not is_valid_email(email):
-        raise ValueError(f"not a valid email: {email!r}")
+        raise ValueError("Enter a valid email address.")
+    if len(password) < MIN_PASSWORD_LENGTH:
+        raise ValueError(f"Password must be at least {MIN_PASSWORD_LENGTH} characters.")
+
+
+def create_user(email: str, password: str) -> bool:
+    """Self-service sign-up. Never touches an existing account; returns False if the email is taken."""
+    check_new_credentials(email, password)
+    with _connect() as conn:
+        cur = conn.execute(
+            "INSERT INTO users (username, password_hash) VALUES (%s, %s) ON CONFLICT (username) DO NOTHING",
+            (normalize_email(email), hash_password(password)),
+        )
+        return cur.rowcount == 1
+
+
+def save_user(email: str, password: str) -> None:
+    """Admin path: create the user, or reset their password if they already exist."""
+    check_new_credentials(email, password)
     with _connect() as conn:
         conn.execute(
             """INSERT INTO users (username, password_hash) VALUES (%s, %s)
@@ -115,6 +136,8 @@ def main() -> None:
         parser.error("passwords do not match")
     try:
         save_user(email, password)
+    except ValueError as e:
+        parser.error(str(e))
     except psycopg.OperationalError:
         parser.exit(1, f"Can't reach Postgres at {redact(DATABASE_URL)}. Is it running and is DATABASE_URL right?\n")
     print(f"Saved {email!r}.")

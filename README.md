@@ -54,15 +54,18 @@ model provider's key. Change `LC_MODEL` in `.env` to switch providers.
 
 ```bash
 docker-compose up -d                       # Postgres on localhost:5433
-uv run lc-demo-adduser you@example.com     # prompts for a password; rerun to reset it
+uv run lc-demo-adduser you@example.com     # optional: people can also sign up in the app
 uv run streamlit run src/lc_demo/web.py    # http://localhost:8501
 ```
 
-Users (log in with email; scrypt-hashed passwords in a `users` table), conversations and agent memory
+Users (self-service sign-up with email; scrypt-hashed passwords in a `users` table), conversations and agent memory
 (`AsyncPostgresSaver` plus a `conversations` table) are all stored in Postgres, so they
 survive restarts. Each user only sees their own chats, which
 are titled after their first message and can be deleted from the sidebar. Replies stream token
 by token, and tool calls show inline. Set `DATABASE_URL` to use another Postgres.
+
+Sign-up is open to anyone who can reach the app, and every chat uses your API keys.
+Sign-up never changes an existing account; to reset a password, rerun `lc-demo-adduser`.
 The CLI demos keep conversation memory in `InMemorySaver`.
 
 ## Deploy (Streamlit Community Cloud + Neon)
