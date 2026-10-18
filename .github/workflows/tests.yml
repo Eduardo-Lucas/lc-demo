@@ -1,0 +1,59 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Lowest supported (requires-python) and the version used locally.
+        python-version: ["3.11", "3.13"]
+
+    services:
+      postgres:
+        # Same image as docker-compose.yml, so the DB and pgvector tests run instead of skipping.
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: lc_demo
+          POSTGRES_PASSWORD: lc_demo
+          POSTGRES_DB: lc_demo
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lc_demo"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+
+    env:
+      DATABASE_URL: postgresql://lc_demo:lc_demo@localhost:5432/lc_demo
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      # Tests skip when Postgres is unreachable; fail loudly here instead so CI can't go green on skips.
+      - name: Check database connection
+        run: uv run python -c "import os, psycopg; psycopg.connect(os.environ['DATABASE_URL']).close()"
+
+      - name: Run tests
+        run: uv run pytest -rs

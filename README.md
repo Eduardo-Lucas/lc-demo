@@ -1,5 +1,7 @@
 # lc-demo — practical LangChain v1 tutorial
 
+[![tests](https://github.com/Eduardo-Lucas/lc-demo/actions/workflows/tests.yml/badge.svg)](https://github.com/Eduardo-Lucas/lc-demo/actions/workflows/tests.yml)
+
 Models, structured output, tools, RAG, memory and MCP in one runnable project.
 
 ## Structure
