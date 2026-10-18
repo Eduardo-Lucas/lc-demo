@@ -65,7 +65,7 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync --locked
+        run: uv sync --locked --group dev
 
       # Tests skip when Postgres is unreachable; fail loudly here instead so CI can't go green on skips.
       - name: Check database connection

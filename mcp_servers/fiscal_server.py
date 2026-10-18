@@ -19,4 +19,5 @@ def list_obligations() -> list[str]:
 
 
 if __name__ == "__main__":
-    mcp.run()
+    # The app starts this server once per session; skip the banner, update check and INFO logs.
+    mcp.run(show_banner=False, log_level="WARNING")

@@ -36,7 +36,7 @@ lc-demo/
 ## Run
 
 ```bash
-uv sync
+uv sync --group dev         # dev group (pytest, ruff) is opt-in, so deploys skip it
 cp .env.example .env        # add your keys
 docker-compose up -d        # Postgres + pgvector, for rag/chat and the web UI
 uv run pytest               # no API keys needed; DB tests skip if Postgres is down
@@ -80,7 +80,7 @@ The CLI demos keep conversation memory in `InMemorySaver`.
    `src/lc_demo/web.py`. Under **Advanced settings**, pick Python 3.13 and paste
    `cloud-secrets.toml` into **Secrets**.
 
-Community Cloud installs from `uv.lock`. Top-level secrets become environment variables,
+Community Cloud installs from `uv.lock` (without the dev group). Top-level secrets become environment variables,
 so the code reads them exactly like `.env`.
 
 ## Design notes

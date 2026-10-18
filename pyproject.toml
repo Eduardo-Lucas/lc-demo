@@ -44,3 +44,7 @@ line-length = 120
 [tool.ruff.lint]
 # pycodestyle errors, pyflakes, import sorting, pyupgrade (to requires-python), bugbear.
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.uv]
+# Keep pytest/ruff out of deploys (Streamlit Cloud runs a plain `uv sync`); use `uv sync --group dev` locally.
+default-groups = []
