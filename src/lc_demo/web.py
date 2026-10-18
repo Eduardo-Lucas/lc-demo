@@ -13,7 +13,7 @@ import streamlit as st
 from langchain_core.messages import AIMessage, HumanMessage
 from psycopg_pool import PoolTimeout
 
-from lc_demo import db
+from lc_demo import db, ui
 from lc_demo.agent import build_full_agent
 from lc_demo.auth import MIN_PASSWORD_LENGTH, authenticate, create_user, has_users, normalize_email
 from lc_demo.config import DATABASE_URL, redact
@@ -76,30 +76,34 @@ def show_signup(value: bool) -> None:
 
 
 def login_page() -> None:
-    """Log-in or sign-up form; stops the script until someone is logged in."""
-    st.title("lc-demo")
-    try:
-        any_users = has_users()
-    except psycopg.OperationalError:
-        st.error(DB_DOWN)
-        st.stop()
-    if st.session_state.get("signing_up") or not any_users:
-        signup_form(first_user=not any_users)
-    else:
-        login_form()
+    """Split-screen intro + log-in/sign-up form; stops the script until someone is logged in."""
+    intro, form = st.columns(2, gap=None)
+    with intro:
+        ui.intro_panel()
+    with form, st.container(key="auth"):
+        try:
+            any_users = has_users()
+        except psycopg.OperationalError:
+            st.error(DB_DOWN)
+            st.stop()
+        if st.session_state.get("signing_up") or not any_users:
+            signup_form(first_user=not any_users)
+        else:
+            login_form()
     st.stop()
 
 
 def login_form() -> None:
+    ui.auth_header("01 / Sign in", "Welcome back.", "Sign in to pick up your conversations where you left them.")
     with st.form("login"):
-        email = st.text_input("Email", autocomplete="email")
+        email = st.text_input("Email address", placeholder="you@example.com", autocomplete="email")
         password = st.text_input("Password", type="password")
-        if st.form_submit_button("Log in", type="primary"):
+        if st.form_submit_button("Sign in", type="primary", icon=":material/north_east:", width="stretch"):
             if authenticate(email, password):
                 st.session_state.user = normalize_email(email)
                 st.rerun()
             st.error("Invalid email or password.")
-    st.button("Create an account", type="tertiary", on_click=show_signup, args=(True,))
+    st.button("New here? **Create an account**", type="tertiary", on_click=show_signup, args=(True,), width="stretch")
 
 
 def signup_error(email: str, password: str, confirm: str) -> str | None:
@@ -110,18 +114,27 @@ def signup_error(email: str, password: str, confirm: str) -> str | None:
         created = create_user(email, password)
     except ValueError as e:
         return str(e)
-    return None if created else "An account with this email already exists. Log in instead."
+    return None if created else "An account with this email already exists. Sign in instead."
 
 
 def signup_form(first_user: bool) -> None:
-    st.subheader("Create the first account" if first_user else "Create an account")
+    if first_user:
+        ui.auth_header(
+            "01 / Get started", "Create the first account.", "No one has signed up yet. This account will be the first."
+        )
+    else:
+        ui.auth_header(
+            "02 / Create account",
+            "Get started.",
+            "Create an account to start asking questions. It takes a few seconds.",
+        )
     with st.form("signup"):
-        email = st.text_input("Email", autocomplete="email")
+        email = st.text_input("Email address", placeholder="you@example.com", autocomplete="email")
         password = st.text_input(
             "Password", type="password", autocomplete="new-password", help=f"At least {MIN_PASSWORD_LENGTH} characters."
         )
         confirm = st.text_input("Confirm password", type="password", autocomplete="new-password")
-        if st.form_submit_button("Create account", type="primary"):
+        if st.form_submit_button("Create account", type="primary", icon=":material/north_east:", width="stretch"):
             if error := signup_error(email, password, confirm):
                 st.error(error)
             else:
@@ -129,7 +142,13 @@ def signup_form(first_user: bool) -> None:
                 st.session_state.user = normalize_email(email)
                 st.rerun()
     if not first_user:
-        st.button("Back to log in", type="tertiary", on_click=show_signup, args=(False,))
+        st.button(
+            "Already have an account? **Sign in**",
+            type="tertiary",
+            on_click=show_signup,
+            args=(False,),
+            width="stretch",
+        )
 
 
 def sidebar(pool, agent, username: str) -> str | None:
@@ -200,7 +219,8 @@ def chat_page(username: str) -> None:
             st.rerun()  # show the new conversation in the sidebar
 
 
-st.set_page_config(page_title="lc-demo", page_icon="🧾")
+# The login page is a full-width split screen; the chat keeps Streamlit's centered column.
+st.set_page_config(page_title="lc-demo", page_icon="🧾", layout="centered" if "user" in st.session_state else "wide")
 if "user" not in st.session_state:
     login_page()
 chat_page(st.session_state.user)

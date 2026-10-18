@@ -1,0 +1,7 @@
+# Light theme in the login page's palette (deep green primary on white), used app-wide.
+[theme]
+base = "light"
+primaryColor = "#1d3a2a"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f3f2ec"
+textColor = "#1d3a2a"
